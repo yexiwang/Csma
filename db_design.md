@@ -8,15 +8,15 @@
 原系统使用 `employee` (管理端) 和 `user` (C端微信用户)。
 新系统调整如下：
 - **管理人员 (`employee`)**:
-  - **社区管理员**: 拥有全局权限。
-  - **助餐点操作员**: 仅拥有特定助餐点权限。
-  - **新增字段**: `dining_point_id` (关联助餐点，管理员为 null)。
+  - **社区管理员 (`ADMIN`)**: 拥有全局权限。
+  - **助餐点操作员 (`OPERATOR`)**: 仅拥有特定助餐点权限。
+  - **新增字段**: `dining_point_id` (关联助餐点，`ADMIN` 为空，`OPERATOR` 必填)。
 
 - **服务对象与执行者 (`user`)**:
-  - **老人/家属**: 负责下单、代订。
-  - **志愿者**: 负责配送。
+  - **老人/家属端账号 (`FAMILY`)**: 负责下单、代订。
+  - **志愿者 (`VOLUNTEER`)**: 负责配送。
   - **改造点**: 原 `user` 表仅用于微信登录，现需增加账号密码登录支持及角色标识。
-  - **新增字段**: `password` (加密密码), `username` (登录名), `role` (枚举: ELDER_FAMILY, VOLUNTEER), `phone` (联系电话), `status` (启用/禁用)。
+  - **新增字段**: `password` (加密密码), `username` (登录名), `role` (枚举: `FAMILY`, `VOLUNTEER`), `phone` (联系电话), `status` (启用/禁用)。
 
 - **老人档案 (`elderly`) - 新增表**:
   - 为了支持“家属代订”及“一人绑定多老人”，将老人信息从 `user` 表独立出来。
@@ -35,7 +35,7 @@
 ### 2.1 employee (员工表 - 修改)
 | 字段名 | 类型 | 说明 | 变更 |
 | :--- | :--- | :--- | :--- |
-| `dining_point_id` | bigint | 所属助餐点ID | **新增**，管理员为空，操作员必填 |
+| `dining_point_id` | bigint | 所属助餐点ID | **新增**，`ADMIN` 为空，`OPERATOR` 必填 |
 
 ### 2.2 user (C端用户表 - 修改)
 | 字段名 | 类型 | 说明 | 变更 |
@@ -103,8 +103,7 @@
 
 | 角色 | 表来源 | 关键权限 | 前端视图 |
 | :--- | :--- | :--- | :--- |
-| **管理员** | employee | 全局管理、人员审核、派单调度 | Admin Dashboard |
-| **操作员** | employee | 本点订单管理、出餐核销 | Operator View |
-| **志愿者** | user (role=VOL) | 任务列表、接单/送达 | Volunteer View |
-| **老人/家属**| user (role=FAM) | 菜品浏览、下单、支付、评价 | Family View |
-
+| **社区管理员 (`ADMIN`)** | employee | 全局管理、人员审核、派单调度 | Admin Dashboard |
+| **助餐点操作员 (`OPERATOR`)** | employee | 本点订单管理、出餐核销 | Operator View |
+| **志愿者 (`VOLUNTEER`)** | user (role=`VOLUNTEER`) | 任务列表、接单/送达 | Volunteer View |
+| **老人/家属端 (`FAMILY`)**| user (role=`FAMILY`) | 菜品浏览、下单、支付、评价 | Family View |

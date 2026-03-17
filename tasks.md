@@ -31,32 +31,32 @@
   - [ ] `OrderService.markMealReady`: 标记出餐。
 
 - [ ] **权限控制 (Security)**
-  - [ ] 配置 Spring Security 拦截器，区分 `/admin/**` (管理员), `/operator/**` (操作员), `/volunteer/**` (志愿者), `/family/**` (家属)。
+  - [ ] 配置 Spring Security 拦截器，区分 `/admin/**` (`ADMIN`), `/operator/**` (`OPERATOR`), `/volunteer/**` (`VOLUNTEER`), `/family/**` (`FAMILY`)。
   - [ ] 实现 JWT Token 生成与解析，包含 Role 信息。
 
 ## Phase 3: 前端页面开发 (Frontend - Vue 2)
 - [ ] **项目初始化**
   - [ ] 基于 `vue-element-admin` 或 Sky Admin 初始化项目。
-  - [ ] 配置动态路由 (`permission.js`)，根据 Role 加载不同菜单。
+  - [ ] 配置动态路由 (`permission.js`)，根据 `ADMIN` / `OPERATOR` / `VOLUNTEER` / `FAMILY` 加载不同菜单。
 
 - [ ] **公共组件**
   - [ ] 封装适老化文本组件 (`BigText`).
   - [ ] 封装高对比度主题配置。
 
-- [ ] **管理端视图 (Admin)**
+- [ ] **管理端视图 (`ADMIN`)**
   - [ ] 助餐点管理页面。
   - [ ] 老人档案管理页面。
   - [ ] 订单调度中心 (待调度订单列表 + 志愿者选择弹窗)。
 
-- [ ] **操作员视图 (Operator)**
+- [ ] **操作员视图 (`OPERATOR`)**
   - [ ] 简易订单列表 (待制作/待取餐)。
   - [ ] 出餐确认按钮。
 
-- [ ] **志愿者视图 (Volunteer)**
+- [ ] **志愿者视图 (`VOLUNTEER`)**
   - [ ] 任务看板 (待取餐/配送中)。
   - [ ] 任务详情页 (显示地址、老人需求)。
 
-- [ ] **家属/老人视图 (Family)**
+- [ ] **家属/老人端视图 (`FAMILY`)**
   - [ ] 首页 (菜品浏览 + 营养标签筛选)。
   - [ ] 下单页 (选择老人、地址、时间)。
   - [ ] 订单列表页。
