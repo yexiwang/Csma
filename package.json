@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "element-plus": "^2.13.5",
+    "pinia": "^3.0.4"
+  }
+}
