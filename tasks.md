@@ -1,75 +1,106 @@
-# 社区老年助餐服务系统 - 开发任务清单 (Tasks)
+# 社区老年助餐服务系统 - 开发任务清单
 
-## Phase 1: 数据库与后端基础改造 (Backend Foundation)
-- [ ] **数据库变更脚本 (SQL)**
-  - [ ] 创建 `dining_point` 表 (助餐点)。
-  - [ ] 创建 `elderly` 表 (老人档案)。
-  - [ ] 创建 `volunteer_stats` 表 (志愿者服务记录)。
-  - [ ] 修改 `employee` 表 (增加 `dining_point_id`)。
-  - [ ] 修改 `user` 表 (增加 `username`, `password`, `role`, `name`)。
-  - [ ] 修改 `orders` 表 (增加 `elder_id`, `volunteer_id`, `dining_point_id`, `subsidy_amount`, `expected_time`)。
-  - [ ] 修改 `dish` 表 (增加 `dining_point_id`, `nutrition_tags`)。
+## 当前技术基线
+- 前端：`sky-admin-vue`，Vue 2 + TypeScript + Element UI + Vuex
+- 后端：`sky-take-out`，Spring Boot + MyBatis XML + JWT + Interceptor
+- 权限方案：继续沿用现有 JWT + Interceptor，不引入 Spring Security
+- 当前角色口径：`ADMIN / OPERATOR / VOLUNTEER / FAMILY`
 
-- [ ] **后端实体类更新 (POJO)**
-  - [ ] 创建/更新 Entity 类 (`DiningPoint`, `Elderly`, `VolunteerStats`).
-  - [ ] 更新 DTO/VO 类 (`UserLoginDTO`, `OrderSubmitDTO`, `ElderlyDTO`).
-  - [ ] 配置 MyBatis Mapper XML 文件。
+## Phase 1：数据库与基础结构
+- [x] 提供社区助餐基础表变更脚本
+  - [x] `community_meal_update.sql`
+  - [x] 包含 `dining_point`、`elderly`、`volunteer_stats`
+  - [x] 包含 `orders`、`dish`、`user`、`employee` 的社区化字段扩展
+- [x] 提供登录与角色权限补丁脚本
+  - [x] `login_role_auth_update.sql`
+  - [x] `employee.role`
+  - [x] `employee.dining_point_id`
+  - [x] `employee/user` 明文 `123456` 转 `md5`
+- [ ] 在本地数据库实际执行并校验以上脚本
+- [x] 后端实体类已补齐核心字段
+  - [x] `Employee.role`
+  - [x] `Employee.diningPointId`
+  - [x] `User.role`
+  - [x] 订单、菜品、助餐点相关社区字段已进入代码模型
 
-- [ ] **基础 CRUD 接口**
-  - [ ] `DiningPointController`: 增删改查助餐点。
-  - [ ] `ElderlyController`: 老人档案管理 (增删改查)。
-  - [ ] `UserController`: 用户注册/登录 (支持多角色)。
+## Phase 2：登录、角色与权限骨架
+- [x] 员工端支持 `ADMIN / OPERATOR` 登录
+- [x] C 端支持 `FAMILY / VOLUNTEER` 角色识别
+- [x] 员工 token 携带 `empId / role / diningPointId / username / name`
+- [x] 用户 token 携带 `userId / role / username / name`
+- [x] `BaseContext` 已扩展为统一认证上下文
+  - [x] `currentId`
+  - [x] `currentRole`
+  - [x] `currentDiningPointId`
+- [x] `JwtTokenAdminInterceptor` 已完成最小可用 URI 级拦截
+  - [x] `ADMIN` 放行全部员工端接口
+  - [x] `OPERATOR` 仅允许 `/admin/order/**`、`/admin/shop/**`
+  - [x] 补充放行 `/admin/employee/logout`
+- [x] `JwtTokenUserInterceptor` 已写入用户上下文并在请求结束后清理
+- [ ] 基于 `currentDiningPointId` 的业务数据范围限制尚未系统接入
+  - [ ] 例如 `OPERATOR` 查询订单时仅看自己助餐点
 
-## Phase 2: 核心业务逻辑实现 (Core Logic)
-- [ ] **订单调度模块**
-  - [ ] `OrderService.submitOrder`: 下单逻辑 (校验老人信息、计算补贴)。
-  - [ ] `OrderService.dispatchOrder`: 派单逻辑 (管理员指派志愿者)。
-  - [ ] `OrderService.completeOrder`: 志愿者确认送达逻辑 (更新状态、记录服务时长)。
+## Phase 3：前端登录态、菜单与员工管理
+- [x] 开发代理已分流
+  - [x] `/api/user -> http://localhost:8080`
+  - [x] `/api -> http://localhost:8080/admin`
+- [x] 前端统一通过请求头 `token` 发送 JWT
+- [x] 登录成功后优先使用后端返回 `role`
+- [x] `token / role / user_info` 已持久化到 cookie
+- [x] 刷新页面后可从 cookie 恢复登录态和角色
+- [x] 路由守卫按 `meta.roles` 做拦截
+- [x] 默认首页已按角色跳转
+  - [x] `ADMIN -> /dashboard`
+  - [x] `OPERATOR -> /order`
+  - [x] `VOLUNTEER -> /volunteer-tasks`
+  - [x] `FAMILY -> /family-order`
+- [x] 侧边栏已按当前角色过滤可见菜单
+- [x] 员工新增/编辑页面已补 `role` 和 `diningPointId`
+- [x] 员工列表页已补 `role` 和 `diningPointId` 展示
+- [ ] `VOLUNTEER / FAMILY` 的完整业务菜单与接口联调还未全部收尾
 
-- [ ] **助餐点作业模块**
-  - [ ] `OrderService.queryByPoint`: 查询本点订单。
-  - [ ] `OrderService.markMealReady`: 标记出餐。
+## Phase 4：社区助餐业务页面现状
+- [x] 助餐点管理页面已存在
+- [x] 老人档案管理页面已存在
+- [x] 志愿者任务页面已存在
+- [x] 家属点餐页与历史订单页已接入当前 Vue 2 工程
+- [x] 家属菜单已指向新的点餐/历史订单页面
+- [x] 旧订单后台页面编译兼容已恢复
+- [ ] 点餐页仍缺完整结算链路
+  - [ ] 地址选择
+  - [ ] 备注填写
+  - [ ] 支付方式
+  - [ ] 真正提交订单
+- [ ] 历史订单页仍缺完整详情与后续动作闭环
+  - [ ] 更完整的详情展示
+  - [ ] 退款/售后类动作
+  - [ ] 物流/配送轨迹
 
-- [ ] **权限控制 (Security)**
-  - [ ] 配置 Spring Security 拦截器，区分 `/admin/**` (`ADMIN`), `/operator/**` (`OPERATOR`), `/volunteer/**` (`VOLUNTEER`), `/family/**` (`FAMILY`)。
-  - [ ] 实现 JWT Token 生成与解析，包含 Role 信息。
+## Phase 5：订单调度与业务联调
+- [ ] 下单 -> 调度 -> 制作 -> 取餐 -> 配送 -> 完成 全流程联调
+- [ ] `ADMIN` 指派志愿者的调度闭环完善
+- [ ] `OPERATOR` 制作中 / 待取餐 / 出餐确认链路完善
+- [ ] `VOLUNTEER` 接单 / 配送 / 完成链路完善
+- [ ] 订单状态流转与页面按钮状态逐项核对
+- [ ] 数据范围与越权场景回归
+  - [ ] `OPERATOR` 访问 `/admin/employee/page` 返回 403
+  - [ ] `ADMIN` 访问员工管理返回 200
+  - [ ] `FAMILY` 刷新后不丢角色
+  - [ ] `VOLUNTEER` 刷新后仍可进入任务页
 
-## Phase 3: 前端页面开发 (Frontend - Vue 2)
-- [ ] **项目初始化**
-  - [ ] 基于 `vue-element-admin` 或 Sky Admin 初始化项目。
-  - [ ] 配置动态路由 (`permission.js`)，根据 `ADMIN` / `OPERATOR` / `VOLUNTEER` / `FAMILY` 加载不同菜单。
+## Phase 6：提交前收尾
+- [ ] 在真实数据库执行角色补丁 SQL
+- [ ] 准备测试账号
+  - [ ] `ADMIN`
+  - [ ] `OPERATOR`
+  - [ ] `FAMILY`
+  - [ ] `VOLUNTEER`
+- [ ] 清理配置中的敏感信息
+- [ ] 补最终接口/功能验收记录
+- [ ] 补答辩演示脚本和操作说明
 
-- [ ] **公共组件**
-  - [ ] 封装适老化文本组件 (`BigText`).
-  - [ ] 封装高对比度主题配置。
-
-- [ ] **管理端视图 (`ADMIN`)**
-  - [ ] 助餐点管理页面。
-  - [ ] 老人档案管理页面。
-  - [ ] 订单调度中心 (待调度订单列表 + 志愿者选择弹窗)。
-
-- [ ] **操作员视图 (`OPERATOR`)**
-  - [ ] 简易订单列表 (待制作/待取餐)。
-  - [ ] 出餐确认按钮。
-
-- [ ] **志愿者视图 (`VOLUNTEER`)**
-  - [ ] 任务看板 (待取餐/配送中)。
-  - [ ] 任务详情页 (显示地址、老人需求)。
-
-- [ ] **家属/老人端视图 (`FAMILY`)**
-  - [ ] 首页 (菜品浏览 + 营养标签筛选)。
-  - [ ] 下单页 (选择老人、地址、时间)。
-  - [ ] 订单列表页。
-
-## Phase 4: 联调与测试 (Integration & Testing)
-- [ ] **全流程联调**
-  - [ ] 下单 -> 派单 -> 制作 -> 取餐 -> 送达。
-  - [ ] 验证数据一致性 (数据库状态)。
-
-- [ ] **适老化验收**
-  - [ ] 检查字体大小是否符合标准 (≥16px)。
-  - [ ] 检查颜色对比度。
-
-- [ ] **文档完善**
-  - [ ] API 接口文档 (Swagger)。
-  - [ ] 用户操作手册。
+## 当前阻塞与注意事项
+- 当前代码里的登录、角色、菜单、基础权限骨架已经打通，但数据库必须先执行最新 SQL。
+- `employee.dining_point_id` 如果之前已执行过 `community_meal_update.sql`，再执行 `login_role_auth_update.sql` 时要跳过重复加列。
+- 本轮没有重构全部 `family/volunteer` 业务接口，也没有引入 Spring Security。
+- 本轮重点已经完成到“登录成功、角色可识别、刷新不丢、菜单正确、员工端越权能拦住”。
