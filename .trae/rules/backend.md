@@ -1,146 +1,259 @@
-# 项目规范文档
+# 社区助餐项目后端开发规则
 
-## 1. 项目概述
+## 1. 当前项目技术基线
 
-本项目是一个基于 Spring Boot 的外卖点餐系统后端服务系统(https://gitee.com/wang-yexi1/sky-take-out/tree/main/)制定。本文档旨在定义项目的技术架构、代码规范、开发流程及最佳实践，以确保代码质量、可维护性和团队协作的一致性,新项目初始化及现有项目迭代请严格遵循本规范。
+本项目后端以当前仓库代码为准，技术栈如下：
 
-## 2. 技术架构
+- Spring Boot
+- MyBatis XML
+- MySQL
+- Redis
+- JWT + Interceptor
+- Maven
+- Lombok
+- Swagger / Knife4j
 
-### 2.1 技术栈
+后续开发默认遵循这套技术路线。
 
-- **核心框架**: Spring Boot
-- **持久层**: MyBatis + MyBatis-Spring-Boot-Starter
-- **数据库**: MySQL 5.7+
-- **连接池**: Alibaba Druid
-- **缓存**: Redis
-- **JSON处理**: Jackson / Fastjson
-- **工具库**: Lombok, Apache Commons
-- **API文档**: Swagger / Knife4j
-- **对象存储**: 阿里云 OSS
-- **构建工具**: Maven
+### 1.1 当前不采用的方案
 
-### 2.2 架构分层
+除非明确发起整套改造，否则不要擅自引入：
 
-项目采用经典的三层架构模式：
+- Spring Security
+- JPA / Hibernate 作为主持久层
+- 注解 SQL 替代现有 MyBatis XML 主方案
 
-- **Controller 层 (`com.sky.controller`)**: 负责接收 HTTP 请求，参数校验，调用 Service 层，并封装统一返回结果。
-- **Service 层 (`com.sky.service`)**: 负责业务逻辑处理，事务控制。
-- **DAO/Mapper 层 (`com.sky.mapper`)**: 负责与数据库交互，使用 MyBatis XML 映射文件。
+## 2. 模块与分层
 
-### 2.3 模块划分
+当前项目模块划分为：
 
-- **sky-common**: 公共模块。包含通用的工具类、常量、异常定义、JSON处理、Result 统一返回结果等。
-- **sky-pojo**: 数据模型模块。包含 Entity（实体）、DTO（数据传输对象）、VO（视图对象）。
-- **sky-server**: 核心业务模块。包含 Controller、Service、Mapper、配置类、启动类等。
+- `sky-common`
+- `sky-pojo`
+- `sky-server`
 
-## 3. 目录结构与命名规范
+职责约定：
 
-### 3.1 目录结构
+- `sky-common`：常量、工具类、上下文、统一返回、异常等
+- `sky-pojo`：Entity、DTO、VO
+- `sky-server`：Controller、Service、Mapper、配置、拦截器、任务等
 
-```text
-sky-take-out
-├── sky-common          # 公共模块
-├── sky-pojo            # 领域模型
-└── sky-server          # 核心业务
-    ├── src/main/java/com/sky
-    │   ├── annotation  # 自定义注解
-    │   ├── aspect      # AOP 切面
-    │   ├── config      # 配置类
-    │   ├── controller  # 控制器 (分 admin/user/notify)
-    │   ├── handler     # 全局处理器 (如异常处理)
-    │   ├── interceptor # 拦截器
-    │   ├── mapper      # DAO 接口
-    │   ├── service     # 业务接口
-    │   │   └── impl    # 业务实现
-    │   ├── task        # 定时任务
-    │   └── websocket   # WebSocket 服务
-    └── src/main/resources
-        ├── mapper      # MyBatis XML 文件
-        └── application.yml # 配置文件
-```
+## 3. 编码约束
 
-### 3.2 命名规范
+### 3.1 Controller 层
 
-- **类名**: 使用 `PascalCase`（大驼峰），如 `EmployeeController`。
-- **方法名/变量名**: 使用 `camelCase`（小驼峰），如 `getEmployeeById`。
-- **常量**: 使用 `UPPER_SNAKE_CASE`（全大写下划线），如 `JwtClaimsConstant.EMP_ID`。
-- **包名**: 全小写，多级包用点分隔，如 `com.sky.controller.admin`。
-- **接口实现类**: 接口名 + `Impl` 后缀，如 `EmployeeServiceImpl`。
-- **DTO/VO**: 必须带后缀，如 `EmployeeLoginDTO`, `EmployeeLoginVO`。
+- 只做参数接收、日志记录、调用 Service、返回 `Result<T>`
+- 不要在 Controller 里堆大段业务逻辑
+- 登录、分页、编辑等接口继续沿用现有路径风格
 
-## 4. 开发规范与最佳实践
+### 3.2 Service 层
 
-### 4.1 统一 API 响应
+- 负责业务逻辑、校验、事务边界
+- 角色相关约束优先放在 Service 层处理
+- 例如员工保存/更新时，继续保持：
+  - `role` 为空默认 `ADMIN`
+  - `OPERATOR` 必须绑定 `diningPointId`
+  - `ADMIN` 自动清空 `diningPointId`
 
-所有 API 接口必须返回 `com.sky.result.Result<T>` 对象。
+### 3.3 Mapper 层
 
-```java
-@Data
-public class Result<T> implements Serializable {
-    private Integer code; // 1:成功, 0:失败
-    private String msg;   // 错误信息
-    private T data;       // 返回数据
-    // ...
-}
-```
+- 优先使用 MyBatis XML
+- 复杂 SQL 不要塞到注解里
+- 数据库字段继续使用 `snake_case`
+- Java 属性继续使用 `camelCase`
 
-### 4.2 异常处理
+## 4. 统一返回与模型使用
 
-- 使用 `@RestControllerAdvice` + `@ExceptionHandler` 进行全局异常捕获。
-- 业务异常应抛出 `BaseException` 的子类（如 `AccountNotFoundException`）。
-- 禁止在 Controller 层直接吞掉异常，应抛出给全局异常处理器处理。
+### 4.1 返回结构
 
-### 4.3 数据模型使用
+接口统一返回：
 
-- **Entity**: 对应数据库表结构，严禁直接暴露给前端。
-- **DTO**: 用于接收前端传递的参数。
-- **VO**: 用于向前端返回数据，屏蔽敏感字段（如密码）。
-- 禁止在 Controller/Service 层使用 Map 传递参数，必须定义 DTO/VO。
+- `Result<T>`
 
-### 4.4 数据库交互
+不要新造一套和现有工程并行的响应格式。
 
-- 优先使用 MyBatis XML 方式编写 SQL，复杂 SQL 避免在注解中编写。
-- 数据库字段命名为 `snake_case`，Java 实体属性为 `camelCase`，在 `application.yml` 中开启自动映射：
-  ```yaml
-  mybatis:
-    configuration:
-      map-underscore-to-camel-case: true
-  ```
-- 公共字段（create\_time, update\_time, create\_user, update\_user）使用 AOP (`AutoFillAspect`) 自动填充。
+### 4.2 模型分层
 
-### 4.5 安全规范
+- `Entity`：数据库实体
+- `DTO`：入参对象
+- `VO`：出参对象
 
-- **认证**: 使用 JWT 令牌认证。
-- **鉴权**:
-  - 管理端接口路径 `/admin/**`，由 `JwtTokenAdminInterceptor` 拦截。
-  - 用户端接口路径 `/user/**`，由 `JwtTokenUserInterceptor` 拦截。
-- **上下文**: 使用 `ThreadLocal` (`BaseContext`) 存储当前登录用户 ID，确保线程安全。
+原则：
 
-### 4.6 日志规范
+- 不直接把 `Entity` 当成所有接口出参
+- 敏感字段优先通过 `VO` 控制
+- 避免在 Controller / Service 中大量用 `Map` 代替 DTO/VO
 
-- 使用 `@Slf4j` 注解。
-- 关键业务操作（如增删改）必须打印日志。
-- 异常捕获时必须打印堆栈信息或错误描述。
+## 5. 当前认证与权限规则
 
-## 5. 代码质量与自动化
+### 5.1 认证方式
 
+当前继续沿用：
 
+- JWT
+- `JwtTokenAdminInterceptor`
+- `JwtTokenUserInterceptor`
 
-### 5.1 常用注解
+不要在本轮开发中替换成 Spring Security。
 
-- `@Autowired`: 依赖注入
-- `@RestController`: 声明控制器
-- `@RequestMapping` / `@GetMapping` / `@PostMapping`: 路径映射
-- `@Service`: 声明业务类
-- `@Mapper`: 声明 DAO 接口
-- `@Transactional`: 声明事务（注意仅在 public 方法生效）
-- `@RequestBody`: 接收 JSON 参数
-- `@PathVariable`: 接收路径参数
+### 5.2 Token 约定
 
-## 6. 配置管理
+当前请求头统一使用：
 
-- **application.yml**: 主配置文件。
-- **application-dev.yml**: 开发环境配置。
-- **application-prod.yml**: 生产环境配置（需创建）。
-- 敏感信息（如数据库密码、密钥）在生产环境中应通过环境变量或配置中心注入，避免明文硬编码。
+- `token`
 
+员工 token 当前包含：
+
+- `empId`
+- `role`
+- `diningPointId`
+- `username`
+- `name`
+
+用户 token 当前包含：
+
+- `userId`
+- `role`
+- `username`
+- `name`
+
+### 5.3 上下文
+
+当前统一上下文使用：
+
+- `BaseContext`
+
+当前至少包含：
+
+- `currentId`
+- `currentRole`
+- `currentDiningPointId`
+
+拦截器写入后必须在请求结束时清理 `ThreadLocal`。
+
+## 6. 当前角色口径
+
+### 6.1 员工端
+
+来源表：`employee`
+
+- `ADMIN`
+- `OPERATOR`
+
+### 6.2 用户端
+
+来源表：`user`
+
+- `FAMILY`
+- `VOLUNTEER`
+
+后续代码、SQL、文档统一按这套命名，不再使用旧的缩写或别名。
+
+## 7. 当前基础权限骨架
+
+员工端当前已落地的越权拦截思路是 URI 级控制。
+
+规则现状：
+
+- `ADMIN`：允许全部员工端接口
+- `OPERATOR`：当前仅允许：
+  - `/admin/order/**`
+  - `/admin/shop/**`
+  - `/admin/employee/logout`
+
+说明：
+
+- 本轮只维护这套“够用”的权限骨架
+- 不要擅自扩成复杂注解权限框架
+- 更细的助餐点数据隔离可以在后续查询层逐步补
+
+## 8. 数据库与 SQL 约束
+
+### 8.1 当前关键脚本
+
+当前应优先参考：
+
+- `community_meal_update.sql`
+- `login_role_auth_update.sql`
+
+### 8.2 密码兼容现状
+
+当前登录代码仍使用 MD5 校验密码。
+
+因此：
+
+- 涉及 employee/user 初始化密码时，应与当前实现兼容
+- 不要在未整体迁移前局部改成 BCrypt 或其他方案
+
+### 8.3 社区助餐关键字段
+
+后续涉及这些业务时，需优先沿用现有字段：
+
+- `employee.role`
+- `employee.dining_point_id`
+- `user.role`
+- `orders.elder_id`
+- `orders.volunteer_id`
+- `orders.dining_point_id`
+- `orders.subsidy_amount`
+- `orders.personal_pay`
+- `orders.expected_time`
+- `dish.dining_point_id`
+- `dish.nutrition_tags`
+- `dish.suitability`
+
+## 9. 日志、异常与公共字段
+
+- 使用 `@Slf4j`
+- 关键业务操作保留日志
+- 业务异常优先抛给全局异常处理
+- 公共字段继续沿用现有 AOP 自动填充方案
+
+## 10. 开发注意事项
+
+### 10.1 不要打断现有订单链路
+
+当前后台订单页、志愿者页、家属历史订单页已经共同依赖现有订单实体与接口。
+
+因此：
+
+- 修改订单相关接口时优先做兼容
+- 不要为了新功能随手删掉旧接口出口
+
+### 10.2 操作员功能开发
+
+后续新增 `OPERATOR` 功能时，应优先考虑：
+
+- 使用 `BaseContext.getCurrentDiningPointId()` 作为数据范围依据
+- 查询结果只返回所属助餐点数据
+
+### 10.3 敏感配置
+
+配置文件中涉及数据库、OSS、微信等敏感信息时：
+
+- 不要在新文档、日志或示例中再次扩散
+- 正式提交前应尽量改为环境化配置
+
+## 11. 构建与验证
+
+当前常用命令：
+
+- 编译：`mvn -q -DskipTests compile`
+- 测试：按模块实际情况执行 Maven test
+
+提交前至少保证：
+
+- 后端能正常编译
+- 登录接口不报错
+- 角色 claim 不丢
+- 基础越权拦截不失效
+
+## 12. 文档维护要求
+
+如果以下内容变化，需要同步更新本规则文档：
+
+- 角色模型
+- token claims
+- 拦截器权限规则
+- SQL 初始化脚本
+- 密码方案
+- 订单扩展字段
