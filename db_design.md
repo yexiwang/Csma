@@ -149,6 +149,9 @@
 - 家属姓名统一从 `user.name` 联查返回。
 - 家属电话统一从 `user.phone` 联查返回。
 - `family_profile` 的作用是承载家属档案状态、备注、逻辑删除和与 `FAMILY` 账号的一对一绑定关系。
+- `family_profile` 不替代 `elderly.user_id`，老人底层仍继续绑定 `user.id`。
+- 老人可绑定的家属必须同时满足：`family_profile.status = 1`、`family_profile.is_deleted = 0`、`user.status = 1`、`user.role = 'FAMILY'`。
+- 若家属档案仍被未删除老人引用，则不允许删除，只允许停用。
 
 ### 4.3 dining_point
 
@@ -200,6 +203,8 @@
 
 - 当前老人归属仍继续沿用 `elderly.user_id -> user.id`。
 - 管理员端保存老人时，必须绑定一个有效且启用的家属档案所对应的 `FAMILY` 用户。
+- 当前阶段不引入 `family_profile_id` 作为老人底层关系字段。
+- 若当前已绑定家属已停用或当前不可选，历史老人记录仍可展示，但不能再作为新的绑定候选。
 
 ### 4.5 volunteer_stats
 
@@ -344,6 +349,7 @@
 
 - 订单归属助餐点不再由购物车菜品反推
 - 菜品的 `dining_point_id` 只负责一致性校验
+- 助餐点休息时禁止产生新单
 
 ### 10.3 购物车规则
 

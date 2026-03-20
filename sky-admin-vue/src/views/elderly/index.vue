@@ -439,7 +439,7 @@ export default class extends Vue {
     const name = item.name || '未命名家属'
     const phone = item.phone || '-'
     const username = item.username || `ID:${item.userId}`
-    const suffix = item.isInjected ? '（当前绑定，已停用）' : ''
+    const suffix = item.isInjected ? '（当前绑定，已停用或当前不可选）' : ''
     return `${name}（${phone} / ${username}）${suffix}`
   }
 

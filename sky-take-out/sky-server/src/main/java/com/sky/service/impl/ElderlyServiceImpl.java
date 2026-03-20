@@ -148,6 +148,9 @@ public class ElderlyServiceImpl implements ElderlyService {
         if (!ROLE_FAMILY.equalsIgnoreCase(user.getRole())) {
             throw new BaseException("老人档案只能绑定角色为FAMILY的用户");
         }
+        if (!StatusConstant.ENABLE.equals(user.getStatus())) {
+            throw new BaseException("关联的FAMILY账号已停用，请重新选择");
+        }
         FamilyProfile familyProfile = familyProfileMapper.getEnabledByUserId(userId);
         if (familyProfile == null) {
             throw new BaseException("关联的家属档案不存在或未启用");

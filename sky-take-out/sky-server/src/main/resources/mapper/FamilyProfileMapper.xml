@@ -117,6 +117,8 @@
         left join user u on u.id = fp.user_id
         where fp.is_deleted = 0
           and fp.status = 1
+          and u.role = 'FAMILY'
+          and u.status = 1
         order by u.name asc, fp.id desc
     </select>
 

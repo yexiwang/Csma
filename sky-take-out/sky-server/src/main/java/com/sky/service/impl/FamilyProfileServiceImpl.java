@@ -63,13 +63,14 @@ public class FamilyProfileServiceImpl implements FamilyProfileService {
     @Transactional
     public void save(FamilyProfileDTO familyProfileDTO) {
         String familyName = normalizeRequiredField(familyProfileDTO.getName(), "家属姓名不能为空");
-        Long userId = resolveUserIdForSave(familyProfileDTO);
+        Integer targetStatus = normalizeStatus(familyProfileDTO.getStatus(), StatusConstant.ENABLE);
+        Long userId = resolveUserIdForSave(familyProfileDTO, targetStatus);
         LocalDateTime now = LocalDateTime.now();
 
         FamilyProfile familyProfile = FamilyProfile.builder()
                 .userId(userId)
                 .remark(normalizeOptionalField(familyProfileDTO.getRemark()))
-                .status(normalizeStatus(familyProfileDTO.getStatus(), StatusConstant.ENABLE))
+                .status(targetStatus)
                 .createTime(now)
                 .updateTime(now)
                 .isDeleted(0)
@@ -93,7 +94,9 @@ public class FamilyProfileServiceImpl implements FamilyProfileService {
         familyProfile.setId(current.getId());
 
         Long targetUserId = familyProfileDTO.getUserId() == null ? current.getUserId() : familyProfileDTO.getUserId();
-        requireFamilyUser(targetUserId);
+        Integer targetStatus = normalizeStatus(familyProfileDTO.getStatus(), current.getStatus());
+        User targetUser = requireFamilyUser(targetUserId);
+        ensureUserUsableForEnabledProfile(targetUser, targetStatus);
         ensureUserIdAvailable(targetUserId, current.getId());
         familyProfile.setUserId(targetUserId);
 
@@ -108,16 +111,15 @@ public class FamilyProfileServiceImpl implements FamilyProfileService {
             familyProfile.setRemark(normalizeOptionalField(familyProfileDTO.getRemark()));
         }
         if (familyProfileDTO.getStatus() != null) {
-            familyProfile.setStatus(normalizeStatus(familyProfileDTO.getStatus(), current.getStatus()));
+            familyProfile.setStatus(targetStatus);
         }
         familyProfile.setUpdateTime(LocalDateTime.now());
 
         familyProfileMapper.update(familyProfile);
         if (targetName != null || familyProfileDTO.getPhone() != null) {
-            User currentUser = requireFamilyUser(targetUserId);
             syncUserProfile(targetUserId,
-                    targetName != null ? targetName : currentUser.getName(),
-                    familyProfileDTO.getPhone() != null ? normalizePhoneForUser(familyProfileDTO.getPhone()) : currentUser.getPhone());
+                    targetName != null ? targetName : targetUser.getName(),
+                    familyProfileDTO.getPhone() != null ? normalizePhoneForUser(familyProfileDTO.getPhone()) : targetUser.getPhone());
         }
     }
 
@@ -127,9 +129,11 @@ public class FamilyProfileServiceImpl implements FamilyProfileService {
             throw new BaseException("家属档案ID不能为空");
         }
         FamilyProfile current = requireProfile(id);
+        Integer targetStatus = normalizeStatus(status, current.getStatus());
+        ensureUserUsableForEnabledProfile(requireFamilyUser(current.getUserId()), targetStatus);
         FamilyProfile familyProfile = FamilyProfile.builder()
                 .id(id)
-                .status(normalizeStatus(status, current.getStatus()))
+                .status(targetStatus)
                 .updateTime(LocalDateTime.now())
                 .build();
         familyProfileMapper.update(familyProfile);
@@ -169,13 +173,14 @@ public class FamilyProfileServiceImpl implements FamilyProfileService {
         return userId;
     }
 
-    private Long resolveUserIdForSave(FamilyProfileDTO familyProfileDTO) {
+    private Long resolveUserIdForSave(FamilyProfileDTO familyProfileDTO, Integer targetStatus) {
         if (Boolean.TRUE.equals(familyProfileDTO.getCreateUser())) {
             return createFamilyUser(familyProfileDTO);
         }
 
         Long userId = requireUserId(familyProfileDTO.getUserId());
-        requireFamilyUser(userId);
+        User user = requireFamilyUser(userId);
+        ensureUserUsableForEnabledProfile(user, targetStatus);
         ensureUserIdAvailable(userId, null);
         return userId;
     }
@@ -212,6 +217,12 @@ public class FamilyProfileServiceImpl implements FamilyProfileService {
             throw new BaseException("家属档案状态不合法");
         }
         return targetStatus;
+    }
+
+    private void ensureUserUsableForEnabledProfile(User user, Integer profileStatus) {
+        if (StatusConstant.ENABLE.equals(profileStatus) && !StatusConstant.ENABLE.equals(user.getStatus())) {
+            throw new BaseException("关联的FAMILY账号已停用，不能启用家属档案");
+        }
     }
 
     private Long createFamilyUser(FamilyProfileDTO familyProfileDTO) {

@@ -1,148 +1,102 @@
 # 社区老年助餐服务系统 - 开发任务清单
 
 ## 当前技术基线
+
 - 前端：`sky-admin-vue`，Vue 2 + TypeScript + Element UI + Vuex
 - 后端：`sky-take-out`，Spring Boot + MyBatis XML + JWT + Interceptor
 - 权限方案：继续沿用现有 JWT + Interceptor，不引入 Spring Security
 - 当前角色口径：`ADMIN / OPERATOR / VOLUNTEER / FAMILY`
 
-## Phase 1：数据库与基础结构
-- [x] 提供社区助餐基础表变更脚本
-  - [x] `community_meal_update.sql`
-  - [x] 包含 `dining_point`、`elderly`、`volunteer_stats`
-  - [x] 包含 `orders`、`dish`、`user`、`employee` 的社区化字段扩展
-- [x] 提供登录与角色权限补丁脚本
-  - [x] `login_role_auth_update.sql`
-  - [x] `employee.role`
-  - [x] `employee.dining_point_id`
-  - [x] `employee/user` 明文 `123456` 转 `md5`
-- [ ] 在本地数据库实际执行并校验以上脚本
-- [x] 后端实体类已补齐核心字段
-  - [x] `Employee.role`
-  - [x] `Employee.diningPointId`
-  - [x] `User.role`
-  - [x] 订单、菜品、助餐点相关社区字段已进入代码模型
+## 当前已落地里程碑
 
-## Phase 2：登录、角色与权限骨架
-- [x] 员工端支持 `ADMIN / OPERATOR` 登录
-- [x] C 端支持 `FAMILY / VOLUNTEER` 角色识别
-- [x] 员工 token 携带 `empId / role / diningPointId / username / name`
-- [x] 用户 token 携带 `userId / role / username / name`
-- [x] `BaseContext` 已扩展为统一认证上下文
-  - [x] `currentId`
-  - [x] `currentRole`
-  - [x] `currentDiningPointId`
-- [x] `JwtTokenAdminInterceptor` 已完成最小可用 URI 级拦截
-  - [x] `ADMIN` 放行全部员工端接口
-  - [x] `OPERATOR` 仅允许 `/admin/order/**`、`/admin/shop/**`
-  - [x] 补充放行 `/admin/employee/logout`
-- [x] `JwtTokenUserInterceptor` 已写入用户上下文并在请求结束后清理
-- [ ] 基于 `currentDiningPointId` 的业务数据范围限制尚未系统接入
-  - [ ] 例如 `OPERATOR` 查询订单时仅看自己助餐点
+- 数据库与主数据
+  - 已补齐社区助餐基础结构、角色补丁与家属档案增量 SQL
+  - `family_profile` 已落地为家属档案业务表
+  - `family_profile` 已删除 `name`、`phone` 字段，家属姓名/电话主数据统一来自 `user`
+- 登录、鉴权与角色
+  - 员工端已支持 `ADMIN / OPERATOR`
+  - 用户端已支持 `FAMILY / VOLUNTEER`
+  - JWT、`BaseContext`、路由守卫、菜单过滤已闭环
+- 老人、家属与助餐点主链路
+  - 管理员端已支持老人档案管理
+  - 管理员端已支持家属档案管理 `/familyProfile`
+  - 老人新增/编辑已要求显式选择关联家属
+  - 老人新增/编辑已要求显式选择所属助餐点
+- FAMILY 端基础链路
+  - `/family-order` 已改成先选老人，再按老人所属助餐点加载菜品
+  - `shopping_cart.elder_id` 已持久化
+  - 购物车当前严格绑定老人
+  - 结算页当前已能按老人真实提交订单
+- OPERATOR 执行链路
+  - `OPERATOR` 当前只能查看所属助餐点订单
+  - 已支持开始制作、分配志愿者、标记出餐完成、确认志愿者取餐
 
-## Phase 3：前端登录态、菜单与员工管理
-- [x] 开发代理已分流
-  - [x] `/api/user -> http://localhost:8080`
-  - [x] `/api -> http://localhost:8080/admin`
-- [x] 前端统一通过请求头 `token` 发送 JWT
-- [x] 登录成功后优先使用后端返回 `role`
-- [x] `token / role / user_info` 已持久化到 cookie
-- [x] 刷新页面后可从 cookie 恢复登录态和角色
-- [x] 路由守卫按 `meta.roles` 做拦截
-- [x] 默认首页已按角色跳转
-  - [x] `ADMIN -> /dashboard`
-  - [x] `OPERATOR -> /order`
-  - [x] `VOLUNTEER -> /volunteer-tasks`
-  - [x] `FAMILY -> /family-order`
-- [x] 侧边栏已按当前角色过滤可见菜单
-- [x] 员工新增/编辑页面已补 `role` 和 `diningPointId`
-- [x] 员工列表页已补 `role` 和 `diningPointId` 展示
-- [ ] `VOLUNTEER / FAMILY` 的完整业务菜单与接口联调还未全部收尾
+## 当前固定规则
 
-## Phase 4：社区助餐业务页面现状
-- [x] 助餐点管理页面已存在
-- [x] 老人档案管理页面已存在
-- [x] 志愿者任务页面已存在
-- [x] 家属点餐页与历史订单页已接入当前 Vue 2 工程
-- [x] 家属菜单已指向新的点餐/历史订单页面
-- [x] 旧订单后台页面编译兼容已恢复
-- [ ] 点餐页仍缺完整结算链路
-  - [ ] 地址选择
-  - [ ] 备注填写
-  - [ ] 支付方式
-  - [ ] 真正提交订单
-- [ ] 历史订单页仍缺完整详情与后续动作闭环
-  - [ ] 更完整的详情展示
-  - [ ] 退款/售后类动作
-  - [ ] 物流/配送轨迹
+### 1. 老人与家属的底层绑定规则
 
-## Phase 5：订单调度与业务联调
-- [ ] 下单 -> 调度 -> 制作 -> 取餐 -> 配送 -> 完成 全流程联调
-- [ ] `ADMIN` 指派志愿者的调度闭环完善
-- [ ] `OPERATOR` 制作中 / 待取餐 / 出餐确认链路完善
-- [ ] `VOLUNTEER` 接单 / 配送 / 完成链路完善
-- [ ] 订单状态流转与页面按钮状态逐项核对
-- [ ] 数据范围与越权场景回归
-  - [ ] `OPERATOR` 访问 `/admin/employee/page` 返回 403
-  - [ ] `ADMIN` 访问员工管理返回 200
-  - [ ] `FAMILY` 刷新后不丢角色
-  - [ ] `VOLUNTEER` 刷新后仍可进入任务页
+- 当前阶段老人底层仍通过 `elderly.user_id -> user.id` 绑定 `FAMILY` 用户
+- `family_profile` 主要作为管理员维护、启停、删除限制和展示入口
+- 当前阶段不把老人底层关系字段改成 `family_profile_id`
 
-## Phase 6：提交前收尾
-- [ ] 在真实数据库执行角色补丁 SQL
-- [ ] 准备测试账号
-  - [ ] `ADMIN`
-  - [ ] `OPERATOR`
-  - [ ] `FAMILY`
-  - [ ] `VOLUNTEER`
-- [ ] 清理配置中的敏感信息
-- [ ] 补最终接口/功能验收记录
-- [ ] 补答辩演示脚本和操作说明
+### 2. 老人可绑定家属的有效性规则
 
-## 当前阻塞与注意事项
-- 当前代码里的登录、角色、菜单、基础权限骨架已经打通，但数据库必须先执行最新 SQL。
-- `employee.dining_point_id` 如果之前已执行过 `community_meal_update.sql`，再执行 `login_role_auth_update.sql` 时要跳过重复加列。
-- 本轮没有重构全部 `family/volunteer` 业务接口，也没有引入 Spring Security。
-- 本轮重点已经完成到“登录成功、角色可识别、刷新不丢、菜单正确、员工端越权能拦住”。
+管理员端“老人新增/编辑”时，家属必须同时满足以下条件，才允许作为可选项和可保存目标：
 
-## 2026-03 最新落地补充
+- `family_profile.status = 1`
+- `family_profile.is_deleted = 0`
+- `user.status = 1`
+- `user.role = 'FAMILY'`
 
-以下内容为当前代码已落地能力，用于覆盖上文中仍保留的旧 TODO。
+### 3. 家属档案停用与删除联动规则
 
-### 已落地：老人驱动订单归属
+- 家属档案若仍关联未删除老人，不允许删除，只允许停用
+- 当前 `DELETE /admin/familyProfile` 为逻辑删除，不做物理删除
+- 停用后的家属档案，不允许再作为老人新增/编辑时的可选项
+- 已绑定该家属的历史老人记录仍允许展示
+- 管理端编辑历史老人时，如当前绑定家属已停用或当前不可选，页面应保留回显并给出提示
 
-- [x] `elderly.dining_point_id` 已成为正式业务字段
-- [x] 下单时由老人决定 `orders.dining_point_id`
-- [x] 菜品助餐点只做合法性校验
+### 4. 老人删除联动规则
 
-### 已落地：FAMILY 点餐与购物车
+- 老人删除优先走逻辑删除
+- 若老人已有关联订单记录，不允许删除
+- 老人删除不会自动改变家属档案状态
 
-- [x] `/family-order` 已改成先选老人，再按老人助餐点加载菜品
-- [x] `shopping_cart.elder_id` 已持久化
-- [x] 购物车当前严格绑定老人
-- [x] 切换老人时，如购物车非空，必须先清空购物车
-- [x] 结算页当前已只读展示老人并真实提交订单
+### 5. 订单归属与助餐点规则
 
-### 已落地：OPERATOR 执行中心
+- 老人决定订单归属助餐点
+- 订单归属链路固定为：`elderId -> elderly.dining_point_id -> orders.dining_point_id`
+- 菜品/套餐只允许属于该助餐点
+- 助餐点休息时禁止产生新单
 
-- [x] `OPERATOR` 只能查看所属助餐点订单
-- [x] 已支持开始制作
-- [x] 已支持分配志愿者
-- [x] 已支持标记出餐完成
-- [x] 已支持确认志愿者取餐
+## 当前仅保留未完成项
 
-### 已落地：管理员端家属档案与主数据收口
+### 数据与环境
 
-- [x] 管理员端已新增 `/familyProfile` 家属档案管理页面
-- [x] 家属档案新增支持“绑定已有 FAMILY 账号”与“同步创建 FAMILY 账号并建档”
-- [x] 老人档案新增/编辑已要求显式选择关联家属
-- [x] 家属姓名主数据已统一收口到 `user.name`
-- [x] 家属联系电话主数据已统一收口到 `user.phone`
-- [x] `family_profile` 表已删除 `name`、`phone` 字段，仅保留档案层字段
-- [x] 家属档案 VO 仍返回 `name`、`phone`，但来源改为 `user` 联查
+- 在真实数据库执行并复核全部增量 SQL 与索引
+- 清理历史脏数据并补录必要主数据
+- 准备完整测试账号：`ADMIN / OPERATOR / FAMILY / VOLUNTEER`
+- 清理配置中的敏感信息
 
-### 仍待继续
+### FAMILY 端与订单展示
 
-- [ ] 历史脏数据清理与补录
-- [ ] 全角色完整联调回归记录
-- [ ] 更细的异常工单、统计与展示优化
+- 地址选择、备注填写、支付方式等结算补充能力
+- 历史订单更完整的详情展示
+- 售后/退款类动作设计与落地
+- 配送轨迹与签收展示
+- 补贴金额、自付金额等展示优化
+
+### 调度、执行与联调
+
+- `ADMIN -> OPERATOR -> VOLUNTEER` 全流程联调回归
+- `ADMIN` 指派志愿者的调度闭环补强
+- `VOLUNTEER` 接单、配送、完成链路回归
+- 订单状态流转与页面按钮状态逐项核对
+- 全角色越权场景回归
+
+### 统计、异常与展示优化
+
+- 更细的异常工单与人工干预记录
+- 更完整的统计口径与展示页
+- 老人、家属、志愿者敏感信息脱敏方案
+- 更严格的外键、索引与数据隔离梳理
