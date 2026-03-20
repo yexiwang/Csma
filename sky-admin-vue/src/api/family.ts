@@ -24,6 +24,7 @@ export interface Elderly {
   phone?: string
   diningPointId?: number
   diningPointName?: string
+  diningPointStatus?: number
 }
 
 export const getFamilyCategoryList = () =>

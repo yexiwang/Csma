@@ -1,26 +1,27 @@
 import { ShoppingCartItem } from '@/api/shoppingCart'
 
 export interface CartSummary {
+  elderId?: number
+  diningPointId?: number
   totalCount: number
   dishAmount: number
   deliveryFee: number
+  tablewareFee: number
   subsidyAmount: number
   payAmount: number
+  effectiveTablewareNumber: number
 }
 
 export type DishQuantityMap = Record<number, number>
 
-const DEFAULT_CART_SUMMARY: CartSummary = {
-  totalCount: 0,
-  dishAmount: 0,
-  deliveryFee: 0,
-  subsidyAmount: 0,
-  payAmount: 0
-}
-
 function toSafeNumber(value: number | string | undefined | null) {
   const nextValue = Number(value)
   return Number.isFinite(nextValue) ? nextValue : 0
+}
+
+function toOptionalPositiveNumber(value: number | string | undefined | null) {
+  const nextValue = Number(value)
+  return Number.isFinite(nextValue) && nextValue > 0 ? nextValue : undefined
 }
 
 export function toCent(value: number | string | undefined | null) {
@@ -33,6 +34,41 @@ export function fromCent(value: number) {
 
 export function formatAmount(value: number | string | undefined | null) {
   return fromCent(toCent(value)).toFixed(2)
+}
+
+export function createEmptyCartSummary(partial: Partial<CartSummary> = {}): CartSummary {
+  return {
+    elderId: toOptionalPositiveNumber(partial.elderId),
+    diningPointId: toOptionalPositiveNumber(partial.diningPointId),
+    totalCount: Math.max(0, Number(partial.totalCount || 0)),
+    dishAmount: fromCent(toCent(partial.dishAmount)),
+    deliveryFee: fromCent(toCent(partial.deliveryFee)),
+    tablewareFee: fromCent(toCent(partial.tablewareFee)),
+    subsidyAmount: fromCent(toCent(partial.subsidyAmount)),
+    payAmount: fromCent(toCent(partial.payAmount)),
+    effectiveTablewareNumber: Math.max(0, Number(partial.effectiveTablewareNumber || 0))
+  }
+}
+
+export function normalizeCartSummary(payload: unknown, fallback: Partial<CartSummary> = {}): CartSummary {
+  if (!payload || typeof payload !== 'object') {
+    return createEmptyCartSummary(fallback)
+  }
+
+  const raw = payload as any
+  return createEmptyCartSummary({
+    elderId: raw.elderId !== undefined ? raw.elderId : fallback.elderId,
+    diningPointId: raw.diningPointId !== undefined ? raw.diningPointId : fallback.diningPointId,
+    totalCount: raw.totalCount !== undefined ? raw.totalCount : fallback.totalCount,
+    dishAmount: raw.dishAmount !== undefined ? raw.dishAmount : fallback.dishAmount,
+    deliveryFee: raw.deliveryFee !== undefined ? raw.deliveryFee : fallback.deliveryFee,
+    tablewareFee: raw.tablewareFee !== undefined ? raw.tablewareFee : fallback.tablewareFee,
+    subsidyAmount: raw.subsidyAmount !== undefined ? raw.subsidyAmount : fallback.subsidyAmount,
+    payAmount: raw.payAmount !== undefined ? raw.payAmount : fallback.payAmount,
+    effectiveTablewareNumber: raw.effectiveTablewareNumber !== undefined
+      ? raw.effectiveTablewareNumber
+      : fallback.effectiveTablewareNumber
+  })
 }
 
 export function normalizeShoppingCartItems(payload: unknown): ShoppingCartItem[] {
@@ -75,32 +111,8 @@ export function calculateCartItemSubtotal(item: Pick<ShoppingCartItem, 'amount' 
   return fromCent(amountInCent * count)
 }
 
-export function calculateCartSummary(
-  items: ShoppingCartItem[],
-  options?: Partial<Pick<CartSummary, 'deliveryFee' | 'subsidyAmount'>>
-): CartSummary {
-  if (!Array.isArray(items) || items.length === 0) {
-    const deliveryFee = fromCent(toCent(options && options.deliveryFee))
-    const subsidyAmount = fromCent(toCent(options && options.subsidyAmount))
-    return {
-      ...DEFAULT_CART_SUMMARY,
-      deliveryFee,
-      subsidyAmount,
-      payAmount: fromCent(toCent(deliveryFee) - toCent(subsidyAmount))
-    }
-  }
-
-  const totalCount = items.reduce((sum, item) => sum + Math.max(0, Number(item.number || 0)), 0)
-  const dishAmountInCent = items.reduce((sum, item) => sum + toCent(item.amount) * Math.max(0, Number(item.number || 0)), 0)
-  const deliveryFee = fromCent(toCent(options && options.deliveryFee))
-  const subsidyAmount = fromCent(toCent(options && options.subsidyAmount))
-  const payAmountInCent = dishAmountInCent + toCent(deliveryFee) - toCent(subsidyAmount)
-
-  return {
-    totalCount,
-    dishAmount: fromCent(dishAmountInCent),
-    deliveryFee,
-    subsidyAmount,
-    payAmount: fromCent(payAmountInCent)
-  }
+export function calculateOrderDishAmount(items: Array<Pick<ShoppingCartItem, 'amount' | 'number'>>) {
+  return fromCent(
+    items.reduce((sum, item) => sum + toCent(item.amount) * Math.max(0, Number(item.number || 0)), 0)
+  )
 }

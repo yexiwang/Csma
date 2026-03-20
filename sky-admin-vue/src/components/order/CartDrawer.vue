@@ -39,6 +39,15 @@
             <div class="item-info">
               <div class="item-name">{{ item.name }}</div>
               <div v-if="item.dishFlavor" class="item-flavor">{{ item.dishFlavor }}</div>
+              <el-button
+                type="text"
+                size="mini"
+                class="item-remove"
+                :disabled="syncing"
+                @click="handleRemove(item)"
+              >
+                删除
+              </el-button>
             </div>
 
             <div class="item-price">￥{{ formatAmount(calculateCartItemSubtotal(item)) }}</div>
@@ -76,6 +85,10 @@
           <span>￥{{ formatAmount(summary.deliveryFee) }}</span>
         </div>
         <div class="summary-row">
+          <span>餐具费</span>
+          <span>￥{{ formatAmount(summary.tablewareFee) }}</span>
+        </div>
+        <div class="summary-row">
           <span>补贴金额</span>
           <span>-￥{{ formatAmount(summary.subsidyAmount) }}</span>
         </div>
@@ -104,8 +117,10 @@ export default class CartDrawer extends Vue {
       totalCount: 0,
       dishAmount: 0,
       deliveryFee: 0,
+      tablewareFee: 0,
       subsidyAmount: 0,
-      payAmount: 0
+      payAmount: 0,
+      effectiveTablewareNumber: 0
     })
   }) private readonly summary!: CartSummary
   @Prop({ default: false }) private readonly syncing!: boolean
@@ -130,6 +145,10 @@ export default class CartDrawer extends Vue {
 
   private handleDecrease(item: ShoppingCartItem) {
     this.$emit('decrease', item)
+  }
+
+  private handleRemove(item: ShoppingCartItem) {
+    this.$emit('remove', item)
   }
 
   private handleClear() {
@@ -209,6 +228,11 @@ export default class CartDrawer extends Vue {
   margin-top: 4px;
   color: #909399;
   font-size: 12px;
+}
+
+.item-remove {
+  padding: 0;
+  margin-top: 6px;
 }
 
 .item-price {

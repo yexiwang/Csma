@@ -15,13 +15,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.HashMap;
 import java.util.Map;
 
 @Service
-//@Slf4j
 public class WorkspaceServiceImpl implements WorkspaceService {
 
     private static final Logger log = LoggerFactory.getLogger(WorkspaceServiceImpl.class);
@@ -36,46 +36,28 @@ public class WorkspaceServiceImpl implements WorkspaceService {
     private SetmealMapper setmealMapper;
 
     /**
-     * 根据时间段统计营业数据
-     * @param begin
-     * @param end
-     * @return
+     * Business data is based on completed orders only.
      */
     public BusinessDataVO getBusinessData(LocalDateTime begin, LocalDateTime end) {
-        /**
-         * 营业额：当日已完成订单的总金额
-         * 有效订单：当日已完成订单的数量
-         * 订单完成率：有效订单数 / 总订单数
-         * 平均客单价：营业额 / 有效订单数
-         * 新增用户：当日新增用户的数量
-         */
-
         Map map = new HashMap();
-        map.put("begin",begin);
-        map.put("end",end);
+        map.put("begin", begin);
+        map.put("end", end);
 
-        //查询总订单数
         Integer totalOrderCount = orderMapper.countByMap(map);
 
         map.put("status", Orders.COMPLETED);
-        //营业额
         Double turnover = orderMapper.sumByMap(map);
-        turnover = turnover == null? 0.0 : turnover;
+        turnover = turnover == null ? 0.0 : turnover;
 
-        //有效订单数
         Integer validOrderCount = orderMapper.countByMap(map);
 
         Double unitPrice = 0.0;
-
         Double orderCompletionRate = 0.0;
-        if(totalOrderCount != 0 && validOrderCount != 0){
-            //订单完成率
+        if (totalOrderCount != 0 && validOrderCount != 0) {
             orderCompletionRate = validOrderCount.doubleValue() / totalOrderCount;
-            //平均客单价
             unitPrice = turnover / validOrderCount;
         }
 
-        //新增用户数
         Integer newUsers = userMapper.countByMap(map);
 
         return BusinessDataVO.builder()
@@ -87,33 +69,29 @@ public class WorkspaceServiceImpl implements WorkspaceService {
                 .build();
     }
 
-
     /**
-     * 查询订单管理数据
-     *
-     * @return 待接单、待派送、已完成、已取消、总订单数
+     * Query today's order overview.
+     * Legacy response field names are kept for compatibility with the current dashboard.
+     * waitingOrders => status 2
+     * deliveredOrders => status 3
+     * completedOrders => status 6
+     * cancelledOrders => status 7
      */
     public OrderOverViewVO getOrderOverView() {
         Map map = new HashMap();
         map.put("begin", LocalDateTime.now().with(LocalTime.MIN));
         map.put("status", Orders.TO_BE_SCHEDULED);
-
-        //2待接单/待调度
         Integer waitingOrders = orderMapper.countByMap(map);
 
-        //3待派送
         map.put("status", Orders.CONFIRMED);
         Integer deliveredOrders = orderMapper.countByMap(map);
 
-        //5已完成
         map.put("status", Orders.COMPLETED);
         Integer completedOrders = orderMapper.countByMap(map);
 
-        //6已取消
         map.put("status", Orders.CANCELLED);
         Integer cancelledOrders = orderMapper.countByMap(map);
 
-        //全部订单
         map.put("status", null);
         Integer allOrders = orderMapper.countByMap(map);
 
@@ -126,11 +104,6 @@ public class WorkspaceServiceImpl implements WorkspaceService {
                 .build();
     }
 
-    /**
-     * 查询菜品总览
-     *
-     * @return  已启售数量 sold; 已停售数量 discontinued
-     */
     public DishOverViewVO getDishOverView() {
         Map map = new HashMap();
         map.put("status", StatusConstant.ENABLE);
@@ -145,11 +118,6 @@ public class WorkspaceServiceImpl implements WorkspaceService {
                 .build();
     }
 
-    /**
-     * 查询套餐总览
-     *
-     * @return 已启售数量 sold; 已停售数量 discontinued
-     */
     public SetmealOverViewVO getSetmealOverView() {
         Map map = new HashMap();
         map.put("status", StatusConstant.ENABLE);

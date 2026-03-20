@@ -6,12 +6,12 @@
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         insert into orders (number, status, user_id, elder_id, volunteer_id, dining_point_id, address_book_id, order_time, expected_time, checkout_time, pay_method, pay_status,
                             amount, subsidy_amount, personal_pay, remark, phone, address, user_name, consignee, cancel_reason, rejection_reason,
-                            cancel_time, estimated_delivery_time, delivery_status, delivery_time, pack_amount,
+                            cancel_time, estimated_delivery_time, delivery_status, delivery_time, pack_amount, delivery_fee, tableware_fee,
                             tableware_number, tableware_status)
         value (#{number}, #{status}, #{userId}, #{elderId}, #{volunteerId}, #{diningPointId}, #{addressBookId}, #{orderTime}, #{expectedTime}, #{checkoutTime}, #{payMethod},
                #{payStatus}, #{amount}, #{subsidyAmount}, #{personalPay}, #{remark}, #{phone}, #{address}, #{userName}, #{consignee}, #{cancelReason},
                #{rejectionReason}, #{cancelTime}, #{estimatedDeliveryTime}, #{deliveryStatus}, #{deliveryTime},
-               #{packAmount}, #{tablewareNumber}, #{tablewareStatus})
+               #{packAmount}, #{deliveryFee}, #{tablewareFee}, #{tablewareNumber}, #{tablewareStatus})
     </insert>
 
     <update id="update" parameterType="com.sky.entity.Orders">
@@ -166,10 +166,20 @@
         where elder_id = #{elderId}
     </select>
 
+    <select id="countOverdueByStatus" resultType="java.lang.Integer">
+        select count(id)
+        from orders
+        where status = #{status}
+          and (
+            (estimated_delivery_time is not null and estimated_delivery_time &lt; #{cutoffTime})
+            or (estimated_delivery_time is null and expected_time is not null and expected_time &lt; #{cutoffTime})
+          )
+    </select>
+
     <select id="getSalesTop10" resultType="com.sky.dto.GoodsSalesDTO">
         select od.name name,sum(od.number) number from order_detail od ,orders o
         where od.order_id = o.id
-        and o.status = 5
+        and o.status = 6
         <if test="begin != null">
             and order_time &gt;= #{begin}
         </if>

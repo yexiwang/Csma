@@ -16,55 +16,40 @@ import java.util.List;
 @Service
 @Slf4j
 public class AddressBookServiceImpl implements AddressBookService {
+
     @Autowired
     private AddressBookMapper addressBookMapper;
 
-    /**
-     * 条件查询
-     *
-     * @param addressBook 查询条件
-     * @return 地址列表
-     */
+    @Override
     public List<AddressBook> list(AddressBook addressBook) {
         return addressBookMapper.list(addressBook);
     }
 
-    /**
-     * 新增地址
-     *
-     * @param addressBook 地址信息
-     */
+    @Override
     public void save(AddressBook addressBook) {
-        addressBook.setUserId(BaseContext.getCurrentId());
-        addressBook.setIsDefault(0);
+        Long currentUserId = BaseContext.getCurrentId();
+        addressBook.setUserId(currentUserId);
+
+        AddressBook query = new AddressBook();
+        query.setUserId(currentUserId);
+        List<AddressBook> addressList = addressBookMapper.list(query);
+        addressBook.setIsDefault(addressList == null || addressList.isEmpty() ? 1 : 0);
+
         addressBookMapper.insert(addressBook);
     }
 
-    /**
-     * 根据地址 id 查询地址
-     *
-     * @param id 地址 id
-     * @return 当前用户拥有的地址
-     */
+    @Override
     public AddressBook getById(Long id) {
         return getOwnedAddressById(id);
     }
 
-    /**
-     * 根据 id 修改地址
-     *
-     * @param addressBook 地址信息
-     */
+    @Override
     public void update(AddressBook addressBook) {
         getOwnedAddressById(addressBook.getId());
         addressBookMapper.update(addressBook);
     }
 
-    /**
-     * 设置默认地址
-     *
-     * @param addressBook 地址信息
-     */
+    @Override
     @Transactional
     public void setDefault(AddressBook addressBook) {
         getOwnedAddressById(addressBook.getId());
@@ -77,11 +62,7 @@ public class AddressBookServiceImpl implements AddressBookService {
         addressBookMapper.update(addressBook);
     }
 
-    /**
-     * 根据 id 删除地址
-     *
-     * @param id 地址 id
-     */
+    @Override
     public void deleteById(Long id) {
         getOwnedAddressById(id);
         addressBookMapper.deleteById(id);

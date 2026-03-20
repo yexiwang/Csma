@@ -1,102 +1,101 @@
-# 社区老年助餐服务系统 - 开发任务清单
+# 社区老年助餐服务系统任务清单
 
 ## 当前技术基线
-
-- 前端：`sky-admin-vue`，Vue 2 + TypeScript + Element UI + Vuex
+- 前端：`sky-admin-vue`，Vue 2 + TypeScript + Element UI
 - 后端：`sky-take-out`，Spring Boot + MyBatis XML + JWT + Interceptor
-- 权限方案：继续沿用现有 JWT + Interceptor，不引入 Spring Security
-- 当前角色口径：`ADMIN / OPERATOR / VOLUNTEER / FAMILY`
+- 权限方案：继续沿用 `JWT + Interceptor + BaseContext`
+- 当前角色：`ADMIN / OPERATOR / VOLUNTEER / FAMILY`
 
-## 当前已落地里程碑
+## 当前已完成里程碑
 
-- 数据库与主数据
-  - 已补齐社区助餐基础结构、角色补丁与家属档案增量 SQL
-  - `family_profile` 已落地为家属档案业务表
-  - `family_profile` 已删除 `name`、`phone` 字段，家属姓名/电话主数据统一来自 `user`
-- 登录、鉴权与角色
-  - 员工端已支持 `ADMIN / OPERATOR`
-  - 用户端已支持 `FAMILY / VOLUNTEER`
-  - JWT、`BaseContext`、路由守卫、菜单过滤已闭环
-- 老人、家属与助餐点主链路
-  - 管理员端已支持老人档案管理
-  - 管理员端已支持家属档案管理 `/familyProfile`
-  - 老人新增/编辑已要求显式选择关联家属
-  - 老人新增/编辑已要求显式选择所属助餐点
-- FAMILY 端基础链路
-  - `/family-order` 已改成先选老人，再按老人所属助餐点加载菜品
-  - `shopping_cart.elder_id` 已持久化
-  - 购物车当前严格绑定老人
-  - 结算页当前已能按老人真实提交订单
-- OPERATOR 执行链路
-  - `OPERATOR` 当前只能查看所属助餐点订单
-  - 已支持开始制作、分配志愿者、标记出餐完成、确认志愿者取餐
+### 第一轮已完成
+- 家属档案管理已落地，`family_profile` 作为家属档案业务表使用。
+- 老人已显式关联家属，底层仍通过 `elderly.user_id -> user.id` 绑定 `FAMILY`。
+- 老人“所属助餐点”字段已落地，管理员端可维护。
+- 登录、角色菜单、路由守卫、基础越权拦截已按当前四角色收口。
+
+### 第二轮已完成
+- `dish.dining_point_id`、`setmeal.dining_point_id` 已纳入正式供给体系。
+- 管理端菜品新增/编辑必须提交 `diningPointId`，列表已展示所属助餐点。
+- 管理端套餐新增/编辑必须提交 `diningPointId`，选菜已按当前助餐点过滤。
+- FAMILY 点餐页已按“先选老人，再按老人所属助餐点加载菜品”运行。
+- FAMILY 购物车已切到“后端真相 + 前端单一状态”：
+  - `/user/shoppingCart/list` 负责条目
+  - `/user/shoppingCart/summary` 负责金额汇总
+- FAMILY 结算页已接入真实金额字段：
+  - `dishAmount`
+  - `deliveryFee`
+  - `tablewareFee`
+  - `subsidyAmount`
+  - `payAmount`
+- 地址选择、默认地址、首个地址自动默认、回跳恢复结算已落地。
+- 下单成功后后端会清空购物车，并跳转 `/family-history?createdOrderId=...`。
+- 历史订单详情已展示菜品金额、配送费、餐具费、补贴金额、实付金额。
+
+### 第三轮已完成
+- 助餐点休息态已阻断新单链路：
+  - 不允许可售查询
+  - 不允许加入购物车
+  - 不允许提交订单
+  - 不允许再来一单
+  - 不允许待支付订单继续支付推进
+- 既有 `2/3/4/5` 状态订单允许继续履约，不做批量改单。
+- 定时任务已收口为：
+  - 保留支付超时自动取消
+  - 移除“配送中超时自动完成”
+  - 新增超时未履约日志识别，不改状态
+- 统计口径已统一为当前 `1-7` 语义。
+- ADMIN dashboard、ADMIN/OPERATOR 订单相关前端状态文案已按新语义收口。
+
+## 当前仍待继续
+
+### 业务能力
+- FAMILY 套餐购物车、套餐下单、套餐再来一单、套餐结算链路。
+- 售后、退款、支付补偿与异常对账闭环。
+- 异常订单页面化、通知与人工处理流。
+- 志愿者完整任务流程联调。
+- 全角色越权回归与跨助餐点数据隔离复核。
+
+### 支付链路
+- `/user/order/submit -> /user/order/payment` 的返回契约仍需稳定收口。
+- 当前前端仍要求 `/user/order/submit` 返回有效的：
+  - `data.id`
+  - `data.orderNumber`
+- 如果后端返回体缺少其中任一字段，前端会直接提示：
+  - `订单创建成功，但未返回有效订单信息`
+- `/user/order/payment` 当前只允许处理 `status = 1` 的待支付订单。
+- 如果传入旧订单号、重复支付，或该订单已被推进到非待支付状态，后端会返回：
+  - `订单状态错误`
+- 当前这部分问题没有再用前端兜底逻辑强行绕过，后续应以后端稳定返回 `OrderSubmitVO(id, orderNumber, orderAmount, orderTime)` 为主修方向。
 
 ## 当前固定规则
 
-### 1. 老人与家属的底层绑定规则
-
-- 当前阶段老人底层仍通过 `elderly.user_id -> user.id` 绑定 `FAMILY` 用户
-- `family_profile` 主要作为管理员维护、启停、删除限制和展示入口
-- 当前阶段不把老人底层关系字段改成 `family_profile_id`
-
-### 2. 老人可绑定家属的有效性规则
-
-管理员端“老人新增/编辑”时，家属必须同时满足以下条件，才允许作为可选项和可保存目标：
-
-- `family_profile.status = 1`
-- `family_profile.is_deleted = 0`
-- `user.status = 1`
-- `user.role = 'FAMILY'`
-
-### 3. 家属档案停用与删除联动规则
-
-- 家属档案若仍关联未删除老人，不允许删除，只允许停用
-- 当前 `DELETE /admin/familyProfile` 为逻辑删除，不做物理删除
-- 停用后的家属档案，不允许再作为老人新增/编辑时的可选项
-- 已绑定该家属的历史老人记录仍允许展示
-- 管理端编辑历史老人时，如当前绑定家属已停用或当前不可选，页面应保留回显并给出提示
-
-### 4. 老人删除联动规则
-
-- 老人删除优先走逻辑删除
-- 若老人已有关联订单记录，不允许删除
-- 老人删除不会自动改变家属档案状态
-
-### 5. 订单归属与助餐点规则
-
-- 老人决定订单归属助餐点
+### 老人、订单与助餐点
+- 老人决定订单归属助餐点。
 - 订单归属链路固定为：`elderId -> elderly.dining_point_id -> orders.dining_point_id`
-- 菜品/套餐只允许属于该助餐点
-- 助餐点休息时禁止产生新单
+- 菜品/套餐只承担供给合法性与助餐点归属校验。
 
-## 当前仅保留未完成项
+### 助餐点休息态
+- 对新单：
+  - 禁止加入购物车
+  - 禁止提交订单
+  - 禁止作为可售菜单来源
+- 对已有订单：
+  - `1 待支付`：允许保留，按支付超时规则自动取消
+  - `2 待调度`：允许继续
+  - `3 制作中`：允许继续
+  - `4 待取餐`：允许继续
+  - `5 配送中`：允许继续
+  - `6 已完成 / 7 已取消`：不处理
 
-### 数据与环境
+### FAMILY 金额模型
+- `deliveryFee = 0`
+- `tablewareFee = 1 元 / 份`
+- `subsidyAmount = 0`
+- `payAmount = dishAmount + deliveryFee + tablewareFee - subsidyAmount`
+- FAMILY 主流程中 `packAmount = 0`
 
-- 在真实数据库执行并复核全部增量 SQL 与索引
-- 清理历史脏数据并补录必要主数据
-- 准备完整测试账号：`ADMIN / OPERATOR / FAMILY / VOLUNTEER`
-- 清理配置中的敏感信息
-
-### FAMILY 端与订单展示
-
-- 地址选择、备注填写、支付方式等结算补充能力
-- 历史订单更完整的详情展示
-- 售后/退款类动作设计与落地
-- 配送轨迹与签收展示
-- 补贴金额、自付金额等展示优化
-
-### 调度、执行与联调
-
-- `ADMIN -> OPERATOR -> VOLUNTEER` 全流程联调回归
-- `ADMIN` 指派志愿者的调度闭环补强
-- `VOLUNTEER` 接单、配送、完成链路回归
-- 订单状态流转与页面按钮状态逐项核对
-- 全角色越权场景回归
-
-### 统计、异常与展示优化
-
-- 更细的异常工单与人工干预记录
-- 更完整的统计口径与展示页
-- 老人、家属、志愿者敏感信息脱敏方案
-- 更严格的外键、索引与数据隔离梳理
+## 文档同步说明
+- `spec.md`：记录当前业务规格、前端页面规则、支付链路问题。
+- `db_design.md`：记录当前表结构、金额字段、订单状态与支付链路边界。
+- 本文件用于标识“当前已完成 / 当前仍待继续”，以后续真实代码状态为准。

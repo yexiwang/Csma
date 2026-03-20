@@ -46,6 +46,7 @@ export interface Order {
   tablewareNumber?: number
   packAmount?: number
   deliveryFee?: number
+  tablewareFee?: number
   personalPay?: number
   subsidyAmount?: number
   volunteerName?: string
@@ -68,14 +69,19 @@ export interface OrderSubmitParams {
   tablewareStatus?: number
   tablewareNumber?: number
   packAmount?: number
+  dishAmount?: number
+  deliveryFee?: number
+  tablewareFee?: number
+  subsidyAmount?: number
+  payAmount?: number
   amount?: number
 }
 
 export interface OrderSubmitResponse {
   id: number
-  orderNumber?: string
-  orderAmount?: number
-  orderTime?: string
+  orderNumber: string
+  orderAmount: number
+  orderTime: string
 }
 
 export interface OrderPaymentParams {

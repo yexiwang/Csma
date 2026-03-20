@@ -81,6 +81,13 @@ public interface DishMapper {
     List<Dish> getBySetmealId(Long id);
 
     /**
+     * 鏍规嵁鑿滃搧id闆嗗悎鏌ヨ鑿滃搧
+     * @param ids 鑿滃搧id闆嗗悎
+     * @return 鑿滃搧鍒楄〃
+     */
+    List<Dish> getByIds(List<Long> ids);
+
+    /**
      * 根据条件统计菜品数量
      * @param map
      * @return

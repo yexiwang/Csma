@@ -2,260 +2,228 @@
 
 ## 1. 文档目的
 
-本文档以当前仓库的实际代码与 SQL 脚本为准，说明社区助餐改造后的数据库结构、角色模型和落地注意事项。
+本文档以当前仓库实际代码与已落地 SQL 为准，说明社区助餐场景下的核心表结构、金额字段、订单状态语义，以及当前需要特别注意的支付链路问题。
 
-当前应优先参考的脚本有：
+当前文档重点覆盖：
 
-- `community_meal_update.sql`
-- `login_role_auth_update.sql`
-- `family_profile_master_data_update.sql`
-- `family_profile_drop_name_phone_columns.sql`
+- 老人、家属、助餐点、菜品、套餐、订单的核心关系
+- 第二轮 FAMILY 真实结算金额字段
+- 助餐点休息态的数据库语义
+- 定时任务与统计口径
+- 当前支付功能的已知问题
 
-说明：
+## 2. 当前核心关系
 
-- `family_profile_name_cleanup.sql`
-- `family_profile_phone_cleanup.sql`
+### 2.1 角色来源
+- `employee.role`：`ADMIN / OPERATOR`
+- `user.role`：`FAMILY / VOLUNTEER`
 
-这两份脚本属于中间过渡脚本，用于把历史姓名、电话回填到 `user` 表。
-如果库已经完成最终删列，不应重复执行。
+### 2.2 老人与家属
+- 当前老人底层仍通过 `elderly.user_id -> user.id` 绑定 `FAMILY`
+- `family_profile` 是家属档案业务表，不替代老人底层绑定字段
 
-## 2. 当前数据库改造基线
+### 2.3 老人与助餐点
+- `elderly.dining_point_id` 表示老人所属助餐点
+- 订单归属链路固定为：
+  - `elderId -> elderly.dining_point_id -> orders.dining_point_id`
+- 菜品、套餐只承担供给合法性和助餐点归属校验
 
-项目仍基于原 `sky_take_out` 数据库扩展，不是完全重建新库。
+## 3. 核心表现状
 
-目前数据库改造主要分为两部分：
+### 3.1 user
 
-### 2.1 社区助餐业务结构扩展
+当前实际关键字段：
 
-由 `community_meal_update.sql` 提供，主要包括：
-
-- 新增 `dining_point`
-- 新增 `elderly`
-- 新增 `volunteer_stats`
-- 修改 `employee`
-- 修改 `user`
-- 修改 `orders`
-- 修改 `dish`
-
-### 2.2 登录与角色权限补充
-
-由 `login_role_auth_update.sql` 提供，主要包括：
-
-- 为 `employee` 增加 `role`
-- 统一初始化员工角色
-- 统一补齐用户角色默认值
-- 将明文 `123456` 兼容更新为 `MD5('123456')`
-
-注意：
-
-- `employee.dining_point_id` 在 `community_meal_update.sql` 中已经出现。
-- `login_role_auth_update.sql` 中对该字段的 `ALTER TABLE` 已经注释掉，避免重复执行时报错。
-
-## 3. 当前角色模型
-
-### 3.1 员工端角色
-
-来源表：`employee`
-
-- `ADMIN`
-- `OPERATOR`
-
-当前代码约束：
-
-- `ADMIN` 的 `dining_point_id` 应为空
-- `OPERATOR` 必须绑定 `dining_point_id`
-
-### 3.2 用户端角色
-
-来源表：`user`
-
-- `FAMILY`
-- `VOLUNTEER`
-
-当前代码中：
-
-- 用户登录如果角色为空，会默认补成 `FAMILY`
-- 微信登录自动注册的用户也会默认写入 `FAMILY`
-
-## 4. 核心表结构现状
-
-### 4.1 employee
-
-当前代码实际使用的关键字段：
-
-| 字段 | 类型 | 说明 |
-| :--- | :--- | :--- |
-| `id` | bigint | 主键 |
-| `username` | varchar | 登录账号 |
-| `name` | varchar | 姓名 |
-| `password` | varchar | 登录密码，当前兼容 MD5 |
-| `phone` | varchar | 手机号 |
-| `sex` | varchar | 性别 |
-| `id_number` | varchar | 身份证号 |
-| `status` | int | 状态 |
-| `role` | varchar(20) | 角色，`ADMIN / OPERATOR` |
-| `dining_point_id` | bigint | 所属助餐点，操作员必填 |
-| `create_time` | datetime | 创建时间 |
-| `update_time` | datetime | 更新时间 |
-| `create_user` | bigint | 创建人 |
-| `update_user` | bigint | 更新人 |
-
-### 4.2 user
-
-当前代码实际使用的关键字段：
-
-| 字段 | 类型 | 说明 |
-| :--- | :--- | :--- |
-| `id` | bigint | 主键 |
-| `openid` | varchar | 微信标识 |
-| `username` | varchar(32) | 账号登录用户名 |
-| `password` | varchar(64) | 登录密码，当前兼容 MD5 |
-| `role` | varchar(20) | 角色，`FAMILY / VOLUNTEER` |
-| `status` | int | 状态 |
-| `name` | varchar(32) | 姓名 |
-| `phone` | varchar(11) | 手机号 |
-| `sex` | varchar | 性别 |
-| `id_number` | varchar | 身份证号 |
-| `avatar` | varchar | 头像 |
-| `create_time` | datetime | 注册时间 |
+| 字段 | 说明 |
+| :--- | :--- |
+| `id` | 用户主键 |
+| `username` | 账号 |
+| `password` | 当前兼容 MD5 |
+| `role` | `FAMILY / VOLUNTEER` |
+| `status` | 启停状态 |
+| `name` | 姓名 |
+| `phone` | 电话 |
 
 说明：
+- `role='FAMILY'` 的 `user.name / user.phone` 也是家属档案页的主数据来源。
 
-- 当前仓库里的登录实现仍按 MD5 校验密码，不是 BCrypt。
-- 后续如果要整体升级密码方案，应作为单独改造任务处理。
-- 对于 `role='FAMILY'` 的用户，`user.name` 与 `user.phone` 现在也是家属档案页的主数据来源。
+### 3.2 employee
 
-### 4.2.1 family_profile
+当前实际关键字段：
 
-当前 `family_profile` 已从“家属姓名/电话资料表”收口为“家属档案业务表”。
-
-当前关键字段：
-
-| 字段 | 类型 | 说明 |
-| :--- | :--- | :--- |
-| `id` | bigint | 主键 |
-| `user_id` | bigint | 关联的 `FAMILY` 用户 ID，唯一 |
-| `remark` | varchar(255) | 家属档案备注 |
-| `status` | int | 档案状态，`1` 启用，`0` 停用 |
-| `create_time` | datetime | 创建时间 |
-| `update_time` | datetime | 更新时间 |
-| `create_user` | bigint | 创建人 |
-| `update_user` | bigint | 更新人 |
-| `is_deleted` | int | 逻辑删除标记，`0` 未删除，`1` 已删除 |
+| 字段 | 说明 |
+| :--- | :--- |
+| `id` | 员工主键 |
+| `username` | 员工账号 |
+| `password` | 当前兼容 MD5 |
+| `role` | `ADMIN / OPERATOR` |
+| `dining_point_id` | `OPERATOR` 所属助餐点 |
+| `status` | 启停状态 |
 
 说明：
+- `ADMIN` 当前不要求绑定助餐点。
+- `OPERATOR` 必须绑定一个有效助餐点。
 
-- `family_profile` 当前不再存储 `name`、`phone` 字段。
-- 家属姓名统一从 `user.name` 联查返回。
-- 家属电话统一从 `user.phone` 联查返回。
-- `family_profile` 的作用是承载家属档案状态、备注、逻辑删除和与 `FAMILY` 账号的一对一绑定关系。
-- `family_profile` 不替代 `elderly.user_id`，老人底层仍继续绑定 `user.id`。
-- 老人可绑定的家属必须同时满足：`family_profile.status = 1`、`family_profile.is_deleted = 0`、`user.status = 1`、`user.role = 'FAMILY'`。
-- 若家属档案仍被未删除老人引用，则不允许删除，只允许停用。
+### 3.3 family_profile
 
-### 4.3 dining_point
+当前已收口为家属档案业务表：
 
-由 `community_meal_update.sql` 新增。
-
-当前关键字段：
-
-| 字段 | 类型 | 说明 |
-| :--- | :--- | :--- |
-| `id` | bigint | 主键 |
-| `name` | varchar(50) | 助餐点名称 |
-| `address` | varchar(255) | 地址 |
-| `contact_phone` | varchar(20) | 联系电话 |
-| `operating_hours` | varchar(50) | 营业时间 |
-| `status` | int | 状态，`1` 营业，`0` 休息 |
-| `image` | varchar(255) | 图片 |
-| `grid_coverage` | json | 服务片区范围 |
-| `create_time` | datetime | 创建时间 |
-| `update_time` | datetime | 更新时间 |
-| `create_user` | bigint | 创建人 |
-| `update_user` | bigint | 更新人 |
-
-### 4.4 elderly
-
-由 `community_meal_update.sql` 新增。
-
-当前关键字段：
-
-| 字段 | 类型 | 说明 |
-| :--- | :--- | :--- |
-| `id` | bigint | 主键 |
-| `user_id` | bigint | 关联的 `FAMILY` 用户 ID |
-| `name` | varchar(32) | 老人姓名 |
-| `gender` | char(1) | 性别 |
-| `age` | int | 年龄 |
-| `phone` | varchar(11) | 联系电话 |
-| `address` | varchar(255) | 地址 |
-| `dining_point_id` | bigint | 所属助餐点 |
-| `grid_code` | varchar(50) | 网格/片区编码 |
-| `health_info` | text | 健康情况 |
-| `special_needs` | varchar(255) | 特殊需求 |
-| `id_card` | varchar(18) | 身份证号 |
-| `image` | varchar(255) | 照片 |
-| `create_time` | datetime | 创建时间 |
-| `update_time` | datetime | 更新时间 |
-| `is_deleted` | int | 逻辑删除标记 |
+| 字段 | 说明 |
+| :--- | :--- |
+| `id` | 档案主键 |
+| `user_id` | 关联 `FAMILY` 用户 |
+| `remark` | 备注 |
+| `status` | `1 启用 / 0 停用` |
+| `is_deleted` | 逻辑删除标记 |
 
 说明：
+- 不再保存 `name`、`phone` 字段。
+- 家属姓名、电话统一来自 `user` 表。
 
-- 当前老人归属仍继续沿用 `elderly.user_id -> user.id`。
-- 管理员端保存老人时，必须绑定一个有效且启用的家属档案所对应的 `FAMILY` 用户。
-- 当前阶段不引入 `family_profile_id` 作为老人底层关系字段。
-- 若当前已绑定家属已停用或当前不可选，历史老人记录仍可展示，但不能再作为新的绑定候选。
+### 3.4 dining_point
 
-### 4.5 volunteer_stats
+当前实际关键字段：
 
-由 `community_meal_update.sql` 新增。
-
-当前关键字段：
-
-| 字段 | 类型 | 说明 |
-| :--- | :--- | :--- |
-| `id` | bigint | 主键 |
-| `user_id` | bigint | 志愿者用户 ID |
-| `total_orders` | int | 累计服务单量 |
-| `total_hours` | decimal(10,1) | 累计服务时长 |
-| `rating` | decimal(2,1) | 评分 |
-| `level` | int | 等级 |
-| `create_time` | datetime | 创建时间 |
-| `update_time` | datetime | 更新时间 |
-
-### 4.6 orders
-
-在原订单表基础上，社区助餐改造新增的关键字段有：
-
-| 字段 | 类型 | 说明 |
-| :--- | :--- | :--- |
-| `elder_id` | bigint | 用餐老人 ID |
-| `volunteer_id` | bigint | 配送志愿者 ID |
-| `dining_point_id` | bigint | 出餐助餐点 ID |
-| `subsidy_amount` | decimal(10,2) | 补贴金额 |
-| `personal_pay` | decimal(10,2) | 自付金额 |
-| `expected_time` | datetime | 期望送达时间 |
+| 字段 | 说明 |
+| :--- | :--- |
+| `id` | 助餐点主键 |
+| `name` | 助餐点名称 |
+| `address` | 地址 |
+| `contact_phone` | 联系电话 |
+| `operating_hours` | 营业时间 |
+| `status` | `1 营业 / 0 休息` |
 
 说明：
+- `status=0` 表示休息态，不允许生成新单。
 
-- 当前代码里订单调度、志愿者配送、家属历史订单都已经依赖这些扩展字段。
-- 但“按助餐点做严格数据隔离”还没有在所有查询中完全落地。
+### 3.5 elderly
 
-### 4.7 dish
+当前实际关键字段：
 
-在原菜品表基础上，社区助餐改造新增的关键字段有：
+| 字段 | 说明 |
+| :--- | :--- |
+| `id` | 老人主键 |
+| `user_id` | 关联 `FAMILY` 用户 |
+| `name` | 老人姓名 |
+| `phone` | 联系电话 |
+| `address` | 地址 |
+| `dining_point_id` | 所属助餐点 |
+| `special_needs` | 特殊需求 |
+| `is_deleted` | 逻辑删除标记 |
 
-| 字段 | 类型 | 说明 |
-| :--- | :--- | :--- |
-| `dining_point_id` | bigint | 所属助餐点 |
-| `nutrition_tags` | varchar(255) | 营养标签 |
-| `suitability` | varchar(255) | 适宜人群 |
+说明：
+- 当前管理员端已补齐“所属助餐点”的前后端读写链路。
 
-## 5. 当前订单状态约定
+### 3.6 dish
 
-结合当前前后端页面与接口，现阶段建议按以下状态理解：
+当前实际关键字段：
 
-| 状态值 | 状态含义 |
+| 字段 | 说明 |
+| :--- | :--- |
+| `id` | 菜品主键 |
+| `name` | 菜品名称 |
+| `category_id` | 分类 |
+| `price` | 单价 |
+| `status` | `1 起售 / 0 停售` |
+| `dining_point_id` | 所属助餐点 |
+
+说明：
+- `dish.dining_point_id` 已是正式供给字段。
+- 管理端菜品新增/编辑必须提交 `diningPointId`。
+
+### 3.7 setmeal
+
+当前实际关键字段：
+
+| 字段 | 说明 |
+| :--- | :--- |
+| `id` | 套餐主键 |
+| `name` | 套餐名称 |
+| `category_id` | 分类 |
+| `price` | 套餐价格 |
+| `status` | `1 起售 / 0 停售` |
+| `dining_point_id` | 所属助餐点 |
+
+说明：
+- `setmeal.dining_point_id` 已成为正式业务字段。
+- 管理端套餐新增/编辑必须提交 `diningPointId`。
+- 套餐内菜品必须与套餐所属助餐点一致。
+
+### 3.8 shopping_cart
+
+当前实际关键字段：
+
+| 字段 | 说明 |
+| :--- | :--- |
+| `id` | 购物车项主键 |
+| `user_id` | 当前 FAMILY 用户 |
+| `elder_id` | 当前服务老人 |
+| `dish_id` | 菜品 ID |
+| `number` | 数量 |
+| `amount` | 单价 |
+
+说明：
+- `shopping_cart.elder_id` 已持久化。
+- 当前同一 `FAMILY` 用户同一时刻只允许存在一个老人的购物车。
+
+### 3.9 orders
+
+当前实际关键字段：
+
+| 字段 | 说明 |
+| :--- | :--- |
+| `id` | 订单主键 |
+| `number` | 订单号，当前支付接口使用 |
+| `user_id` | 下单 FAMILY 用户 |
+| `elder_id` | 老人 ID |
+| `dining_point_id` | 订单所属助餐点 |
+| `volunteer_id` | 志愿者 ID |
+| `status` | 订单状态 |
+| `pay_status` | 支付状态 |
+| `amount` | 订单总金额，当前等于 FAMILY `payAmount` |
+| `personal_pay` | 实付金额 |
+| `subsidy_amount` | 补贴金额，当前固定 `0` |
+| `delivery_fee` | 配送费，当前固定 `0` |
+| `tableware_fee` | 餐具费 |
+| `pack_amount` | 当前 FAMILY 主流程固定 `0` |
+| `expected_time` | 期望送达时间 |
+| `estimated_delivery_time` | FAMILY 提交的预计送达时间 |
+| `order_time` | 下单时间 |
+| `checkout_time` | 支付完成时间 |
+| `cancel_time` | 取消时间 |
+| `cancel_reason` | 取消原因 |
+
+说明：
+- `delivery_fee`、`tableware_fee` 已进入当前真实结算与历史订单金额展示。
+- FAMILY 主流程当前金额口径为：
+  - `amount = payAmount`
+  - `personal_pay = payAmount`
+  - `subsidy_amount = 0`
+  - `pack_amount = 0`
+
+## 4. FAMILY 当前金额模型
+
+当前固定规则：
+
+- `dishAmount = sum(item.amount * item.number)`
+- `deliveryFee = 0`
+- `tablewareFee = effectiveTablewareNumber * 1`
+- `subsidyAmount = 0`
+- `payAmount = dishAmount + deliveryFee + tablewareFee - subsidyAmount`
+
+页面与落库口径：
+
+- 购物车抽屉、底部结算栏、结算弹层、历史订单详情统一按上面口径展示
+- 订单落库时：
+  - `amount = payAmount`
+  - `personal_pay = payAmount`
+  - `delivery_fee`、`tableware_fee` 持久化
+
+## 5. 当前订单状态语义
+
+统一按以下状态理解：
+
+| 状态值 | 含义 |
 | :--- | :--- |
 | `1` | 待支付 |
 | `2` | 待调度 |
@@ -266,127 +234,66 @@
 | `7` | 已取消 |
 
 说明：
+- 统计 SQL、ADMIN 概览、OPERATOR 看板、历史订单页都应按这一口径理解。
+- `Top10`、营业额、有效订单统一按 `status = 6` 作为完成口径。
 
-- 文档中的状态命名应优先和当前代码、页面文案保持一致。
+## 6. 助餐点休息态规则
 
-## 6. 当前登录与权限相关字段约定
+### 6.1 新单阻断
+- 助餐点切为休息后，不允许：
+  - 作为可售菜品/套餐来源
+  - 新加入购物车
+  - 提交新订单
+  - 再来一单回写购物车
+  - 待支付订单继续支付推进
 
-### 6.1 员工登录
+### 6.2 既有订单处理
+- `1 待支付`：保留原单，按支付超时规则自动取消
+- `2 待调度`：允许继续
+- `3 制作中`：允许继续
+- `4 待取餐`：允许继续
+- `5 配送中`：允许继续
+- `6 已完成 / 7 已取消`：不处理
 
-员工 token 当前会写入：
+## 7. 定时任务与统计口径
 
-- `empId`
-- `role`
-- `diningPointId`
-- `username`
-- `name`
+### 7.1 定时任务
+- 保留：待支付超时自动取消
+- 移除：配送中超时自动完成
+- 新增：超时未履约日志识别，不直接改订单状态
 
-### 6.2 用户登录
+### 7.2 统计口径
+- 销量 Top10：只统计 `status = 6`
+- 营业额：只统计 `status = 6`
+- 工作台/概览页：统一按当前 `1-7` 语义
 
-用户 token 当前会写入：
+## 8. 当前支付链路问题说明
 
-- `userId`
-- `role`
-- `username`
-- `name`
+当前支付功能需要特别说明：
 
-### 6.3 请求头
+- `orders.number` 仍然是 FAMILY 支付接口使用的订单号。
+- 前端当前直接依赖 `/user/order/submit` 返回：
+  - `data.id`
+  - `data.orderNumber`
+- 如果后端返回体缺少 `id` 或 `orderNumber`，前端不会再通过历史订单或详情接口兜底猜测订单号，而是直接提示：
+  - `订单创建成功，但未返回有效订单信息`
+- `/user/order/payment` 当前只允许处理 `status = 1` 的待支付订单。
+- 如果传入旧订单号、重复触发支付，或该订单已经被推进到非待支付状态，后端返回：
+  - `订单状态错误`
+  这属于当前状态保护逻辑。
 
-当前前后端统一使用请求头：
+当前已知问题的核心不在数据库缺字段，而在接口契约和时序联调：
 
-- `token`
-
-## 7. SQL 执行建议
-
-建议执行顺序：
-
-1. 基础 `sky_take_out` 库结构
-2. `community_meal_update.sql`
-3. `login_role_auth_update.sql`
-
-执行时需要注意：
-
-- 若数据库已执行过旧版社区改造 SQL，请先检查 `employee.dining_point_id` 是否已存在
-- 如果已存在，不要重复执行同名 `ALTER TABLE`
-- 若库中仍有明文 `123456`，再执行登录权限补充 SQL 完成兼容更新
-
-## 8. 当前未完全落地的数据库层事项
-
-以下内容仍属于后续优化范围：
-
-- 更严格的外键与索引梳理
-- 助餐点范围内的数据隔离查询
-- 老人隐私字段脱敏方案
-- 更完整的补贴计算与审计字段
-- 配送轨迹、签收凭证等扩展表
+- `/user/order/submit` 返回契约需要稳定
+- `/submit -> /payment` 的前后端串联需要继续联调
+- 文档口径应把这部分视为“已知问题，尚未完全收口”，而不是“已完全稳定闭环”
 
 ## 9. 维护说明
 
-后续如果以下任一内容发生变化，应同步更新本文档：
+后续如果继续调整以下任一内容，应同步更新本文档：
 
-- 角色字段
-- 订单扩展字段
-- 登录 token claims
-- SQL 初始化脚本
-- 订单状态定义
-
-## 10. 2026-03 最新规则补充
-
-以下内容覆盖本文档中与当前实现不一致的旧描述。
-
-### 10.1 老人与助餐点绑定
-
-- `elderly.dining_point_id` 当前已经是正式业务字段
-- 其业务含义为：该老人默认由哪个助餐点提供助餐服务
-
-### 10.2 订单归属规则
-
-当前订单归属助餐点链路为：
-
-`elderId -> elderly.dining_point_id -> orders.dining_point_id`
-
-这意味着：
-
-- 订单归属助餐点不再由购物车菜品反推
-- 菜品的 `dining_point_id` 只负责一致性校验
-- 助餐点休息时禁止产生新单
-
-### 10.3 购物车规则
-
-- `shopping_cart` 当前已新增持久化字段 `elder_id`
-- 同一 `FAMILY` 用户同一时刻只允许存在一个老人的购物车
-- `GET /user/shoppingCart/list` 当前返回：
-  - 持久化字段 `elderId`
-  - 派生字段 `diningPointId`
-
-### 10.4 OPERATOR 数据范围
-
-- `orders.dining_point_id` 不仅决定订单归属，也决定 `OPERATOR` 的数据范围
-- 当角色为 `OPERATOR` 时，订单查询与状态操作都必须满足：
-  - `orders.dining_point_id = currentDiningPointId`
-
-### 10.5 管理员端老人档案字段落地
-
-当前仓库已经完成管理员端“老人档案 -> 所属助餐点”字段落地，数据库与接口约定如下：
-
-- 字段：`elderly.dining_point_id`
-- 推荐注释：`所属助餐点ID/默认助餐点ID`
-- 业务含义：表示该老人默认由哪个助餐点提供助餐服务
-- 推荐索引：`idx_elderly_dining_point_id`
-
-增量 SQL 已单独沉淀在仓库根目录：
-
-- `elderly_dining_point_admin_update.sql`
-
-管理员端当前读写方式：
-
-- 新增/编辑老人时，`dining_point_id` 由管理端表单显式提交
-- 分页/详情查询通过 `elderly LEFT JOIN dining_point` 直接返回 `diningPointName`
-- 管理端不再需要拿到 `diningPointId` 后自行循环查名称
-
-当前管理端校验约定：
-
-- `dining_point_id` 必填
-- 目标助餐点必须存在
-- 目标助餐点必须为启用状态
-- 若为历史遗留空值数据，可查询、可展示，但不能在保存时继续以空值提交
+- 订单金额字段含义
+- 订单状态枚举
+- 助餐点休息态规则
+- 订单支付链路
+- 统计 SQL 口径

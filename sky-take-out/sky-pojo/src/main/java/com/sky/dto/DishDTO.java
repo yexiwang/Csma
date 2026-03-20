@@ -24,6 +24,9 @@ public class DishDTO implements Serializable {
     @ApiModelProperty("菜品分类id")
     private Long categoryId;
 
+    @ApiModelProperty("所属助餐点ID")
+    private Long diningPointId;
+
     //菜品价格
     @ApiModelProperty("菜品价格")
     private BigDecimal price;

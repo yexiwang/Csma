@@ -271,7 +271,7 @@ interface ViewTab {
 export default class OperatorOrderCenter extends Vue {
   private readonly ORDER_STATUS = ORDER_STATUS
   private readonly viewTabs: ViewTab[] = [
-    { label: '待制作', value: 'PENDING_PREPARE', key: 'pendingPrepare' },
+    { label: '待调度', value: 'PENDING_PREPARE', key: 'pendingPrepare' },
     { label: '制作中', value: 'PREPARING', key: 'preparing' },
     { label: '待分配志愿者', value: 'PENDING_ASSIGNMENT', key: 'pendingAssignment' },
     { label: '待取餐', value: 'MEAL_READY', key: 'mealReady' },

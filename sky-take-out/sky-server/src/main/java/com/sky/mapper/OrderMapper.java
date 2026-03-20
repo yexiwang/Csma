@@ -85,5 +85,7 @@ public interface OrderMapper {
     /**
      * 统计指定时间区间内销量 top10
      */
+    Integer countOverdueByStatus(Integer status, LocalDateTime cutoffTime);
+
     List<GoodsSalesDTO> getSalesTop10(LocalDateTime begin, LocalDateTime end);
 }

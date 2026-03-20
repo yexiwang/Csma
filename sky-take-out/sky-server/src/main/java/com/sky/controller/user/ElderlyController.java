@@ -48,6 +48,7 @@ public class ElderlyController {
         if (elderly.getDiningPointId() != null) {
             DiningPoint diningPoint = diningPointMapper.getById(elderly.getDiningPointId());
             elderlyVO.setDiningPointName(diningPoint == null ? null : diningPoint.getName());
+            elderlyVO.setDiningPointStatus(diningPoint == null ? null : diningPoint.getStatus());
         }
         return elderlyVO;
     }

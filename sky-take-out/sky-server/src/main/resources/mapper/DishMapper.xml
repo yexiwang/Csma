@@ -107,4 +107,12 @@
             </if>
         </where>
     </select>
+
+    <select id="getByIds" resultType="com.sky.entity.Dish">
+        select * from dish
+        where id in
+        <foreach item="id" collection="ids" open="(" close=")" separator=",">
+            #{id}
+        </foreach>
+    </select>
 </mapper>

@@ -9,7 +9,7 @@
         <span class="total-price">待支付：￥{{ formatAmount(summary.payAmount) }}</span>
         <span class="item-count">
           <template v-if="summary.totalCount > 0">
-            共 {{ summary.totalCount }} 份，菜品 ￥{{ formatAmount(summary.dishAmount) }}
+            共 {{ summary.totalCount }} 份，菜品 ￥{{ formatAmount(summary.dishAmount) }} / 配送 ￥{{ formatAmount(summary.deliveryFee) }} / 餐具 ￥{{ formatAmount(summary.tablewareFee) }}
           </template>
           <template v-else>
             购物车为空，请先选择商品
@@ -42,8 +42,10 @@ export default class CartBar extends Vue {
       totalCount: 0,
       dishAmount: 0,
       deliveryFee: 0,
+      tablewareFee: 0,
       subsidyAmount: 0,
-      payAmount: 0
+      payAmount: 0,
+      effectiveTablewareNumber: 0
     })
   }) private readonly summary!: CartSummary
   @Prop({ default: false }) private readonly loading!: boolean

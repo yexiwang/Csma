@@ -176,8 +176,31 @@
             </el-table>
           </div>
 
+          <div class="detail-amount-list">
+            <div class="detail-amount-row">
+              <span>菜品金额</span>
+              <span>￥{{ formatPrice(detailDishAmount) }}</span>
+            </div>
+            <div class="detail-amount-row">
+              <span>配送费</span>
+              <span>￥{{ formatPrice(detailData.deliveryFee) }}</span>
+            </div>
+            <div class="detail-amount-row">
+              <span>餐具费</span>
+              <span>￥{{ formatPrice(detailData.tablewareFee) }}</span>
+            </div>
+            <div class="detail-amount-row">
+              <span>补贴金额</span>
+              <span>-￥{{ formatPrice(detailData.subsidyAmount) }}</span>
+            </div>
+            <div class="detail-amount-row">
+              <span>餐具说明</span>
+              <span>{{ detailTablewareDescription }}</span>
+            </div>
+          </div>
+
           <div class="detail-total">
-            <span>订单金额</span>
+            <span>实付金额</span>
             <strong>￥{{ formatPrice(detailData.amount) }}</strong>
           </div>
         </div>
@@ -294,6 +317,25 @@ export default class OrderHistory extends Vue {
       return []
     }
     return this.detailData.orderDetailList || this.detailData.orderDetails || []
+  }
+
+  get detailDishAmount() {
+    return this.detailItems.reduce((sum, item) => sum + this.calculateDetailLineAmount(item), 0)
+  }
+
+  get detailTablewareDescription() {
+    if (!this.detailData) {
+      return '--'
+    }
+
+    const effectiveTablewareNumber = this.detailItems.reduce((sum, item) => sum + Number(item.number || 0), 0)
+    if (Number(this.detailData.tablewareStatus) === 1) {
+      return `按餐量提供（${effectiveTablewareNumber} 份）`
+    }
+    if (Number(this.detailData.tablewareNumber || 0) > 0) {
+      return `自定义 ${Number(this.detailData.tablewareNumber)} 份`
+    }
+    return '不需要餐具'
   }
 
   private parseOrderId(value: any) {
@@ -476,7 +518,12 @@ export default class OrderHistory extends Vue {
       await this.loadOrders()
       await this.refreshDetailIfNeeded(Number(order.id))
     } catch (error) {
-      this.$message.error(this.resolveErrorMessage(error, '继续支付失败，请重试'))
+      const paymentErrorMessage = this.resolvePaymentErrorMessage(error)
+      if (paymentErrorMessage.includes('助餐点') && paymentErrorMessage.includes('休息')) {
+        this.$message.warning(paymentErrorMessage)
+      } else {
+        this.$message.error(paymentErrorMessage)
+      }
     } finally {
       this.payingOrderId = null
     }
@@ -541,6 +588,10 @@ export default class OrderHistory extends Vue {
     const responseMessage = error && error.response && error.response.data && error.response.data.msg
     const directMessage = error && error.message
     return responseMessage || directMessage || fallbackMessage
+  }
+
+  private resolvePaymentErrorMessage(error: any) {
+    return this.resolveErrorMessage(error, '继续支付失败，请重试')
   }
 }
 </script>
@@ -677,6 +728,24 @@ export default class OrderHistory extends Vue {
     font-size: 18px;
     color: #f56c6c;
   }
+}
+
+.detail-amount-list {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #fff9e8;
+}
+
+.detail-amount-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: #606266;
 }
 
 .detail-footer {

@@ -83,6 +83,7 @@ export default class extends Vue {
   @Prop({ default: '' }) private value!: number
   @Prop({ default: [] }) private checkList!: any[]
   @Prop({ default: '' }) private seachKey!: string
+  @Prop({ default: null }) private diningPointId!: number | null
   private dishType: [] = []
   private dishList: [] = []
   private allDishList: any[] = []
@@ -103,20 +104,34 @@ export default class extends Vue {
     }
   }
 
+  @Watch('diningPointId')
+  private diningPointIdChange() {
+    this.resetDishScope()
+    this.init()
+  }
+
   public init() {
+    if (!this.diningPointId) {
+      this.resetDishScope()
+      return
+    }
     // 菜单列表数据获取
     this.getDishType()
     // 初始化选项
     this.checkedList = this.checkList.map((it: any) => it.name)
     // 已选项的菜品-详细信息
-    this.checkedListAll = this.checkList.reverse()
+    this.checkedListAll = [...this.checkList].reverse()
   }
   // 获取套餐分类
   public getDishType() {
     getCategoryList({ type: 1 }).then(res => {
       if (res && res.data && res.data.code === 1) {
         this.dishType = res.data.data
-        this.getDishList(res.data.data[0].id)
+        if (Array.isArray(res.data.data) && res.data.data.length > 0) {
+          this.getDishList(res.data.data[0].id)
+        } else {
+          this.dishList = []
+        }
       } else {
         this.$message.error(res.data.msg)
       }
@@ -132,7 +147,11 @@ export default class extends Vue {
 
   // 通过套餐ID获取菜品列表分类
   private getDishList(id: number) {
-    queryDishList({ categoryId: id }).then(res => {
+    if (!this.diningPointId) {
+      this.dishList = []
+      return
+    }
+    queryDishList({ categoryId: id, diningPointId: this.diningPointId }).then(res => {
       if (res && res.data && res.data.code === 1) {
         if (res.data.data.length == 0) {
           this.dishList = []
@@ -158,7 +177,11 @@ export default class extends Vue {
 
   // 关键词收搜菜品列表分类
   private getDishForName(name: any) {
-    queryDishList({ name }).then(res => {
+    if (!this.diningPointId) {
+      this.dishList = []
+      return
+    }
+    queryDishList({ name, diningPointId: this.diningPointId }).then(res => {
       if (res && res.data && res.data.code === 1) {
         let newArr = res.data.data
         newArr.forEach((n: any) => {
@@ -241,6 +264,17 @@ export default class extends Vue {
     this.checkedList.splice(index, 1)
     this.checkedListAll.splice(indexAll, 1)
     this.$emit('checkList', this.checkedListAll)
+  }
+
+  private resetDishScope() {
+    this.dishType = []
+    this.dishList = []
+    this.allDishList = []
+    this.dishListCache = []
+    this.keyInd = 0
+    this.ids = new Set()
+    this.checkedList = this.checkList.map((it: any) => it.name)
+    this.checkedListAll = [...this.checkList].reverse()
   }
 }
 </script>

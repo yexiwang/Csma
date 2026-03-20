@@ -146,10 +146,13 @@
 
 - 订单列表查询
 - 订单详情查询
-- 接单/拒单
-- 取消订单
-- 配送中
-- 完成订单
+- 管理员调度
+- 助餐点开始制作
+- 助餐点分配志愿者
+- 助餐点标记出餐
+- 助餐点确认取餐交接
+- 管理端取消订单
+- 志愿者配送完成
 
 ### 5.3 家属端点餐与历史订单
 
@@ -157,22 +160,43 @@
 
 - `src/views/user-order/index.vue`
 - `src/views/order-history/index.vue`
+- `src/views/family-address/index.vue`
+- `src/views/family-address/form.vue`
 
 其中已落地能力包括：
 
 - 菜品分类加载
 - 菜品列表加载
-- 本地购物车数量维护
+- 按选中老人和所属助餐点加载可售菜品
+- 后端购物车列表加载
+- 后端购物车金额汇总
+- 购物车加购、减购、整项删除、清空
+- 购物车抽屉、底部栏、结算弹层共用真实金额
+- 结算弹层中的地址选择、备注、预计送达、餐具模式
+- 地址列表、地址选择、新增地址、编辑地址
+- 默认地址自动选中与首个地址自动设为默认地址
 - 历史订单分页查询
 - 历史订单详情查看
+- 历史订单金额拆分展示
 - 取消订单
 - 再来一单
 - 催单
+- 继续支付
 
 说明：
 
-- 当前购物车主要通过页面本地状态和 `localStorage` 维护。
-- `Pinia` 草稿 store 文件仍在仓库中保留，但还没有正式接入当前 Vue 2 工程。
+- 当前 `/family-order` 的数量和金额已经改为“后端真相 + 前端单一状态源”：
+  - 购物车条目来自 `/user/shoppingCart/list`
+  - 金额汇总来自 `/user/shoppingCart/summary`
+- 页面不再本地手算总价；购物车抽屉、底部栏、结算弹层统一读取同一份汇总结果。
+- 结算草稿当前通过 `sessionStorage` 持久化 `remark`、`estimatedDeliveryTime`、`tablewareStatus`、`tablewareNumber`、`selectedAddressId`。
+- 仓库中保留的 `Pinia` 相关草稿文件没有接入当前 Vue 2 主流程。
+- 当前支付链路仍需特别注意：
+  - FAMILY 下单后仍会立即调用 `PUT /user/order/payment`
+  - 前端当前直接依赖 `/user/order/submit` 返回有效的 `data.id` 和 `data.orderNumber`
+  - 如果后端返回体缺少 `id` 或 `orderNumber`，前端会提示“订单创建成功，但未返回有效订单信息”
+  - `/user/order/payment` 只允许处理 `status = 1` 的待支付订单；如果传入旧订单号、重复支付或订单已推进到其它状态，后端会返回“订单状态错误”
+  - 当前没有再通过历史订单反查、详情回查等前端兜底方式绕过这个问题
 
 ## 6. 当前订单状态约定
 
@@ -229,12 +253,14 @@
 
 以下内容仍属于后续开发任务，而不是当前代码已完整实现的能力：
 
-- 家属端结算补充能力
-  - 地址选择
-  - 备注填写
-  - 支付方式
-- 历史订单更完整的详情、售后与配送轨迹展示
-- 补贴计算与金额展示闭环
+- 套餐加入购物车、套餐提交订单、套餐再来一单、套餐结算链路
+- 历史订单更完整的售后、配送轨迹与签收凭证展示
+- 真实支付回调失败后的退款、补偿与异常对账闭环
+- 提交后支付链路的返回契约稳定化：
+  - `/user/order/submit` 稳定返回 `OrderSubmitVO(id, orderNumber, orderAmount, orderTime)`
+  - `/submit -> /payment` 串联时序、重复点击、旧订单号误用的联调收口
+- 补贴政策、优惠分摊与 `subsidyAmount` 的真实业务启用
+- 异常订单的页面化看板、通知与人工处理流
 - 志愿者完整任务流程联调
 - 操作员按所属助餐点的数据隔离
 - 真实环境下全角色联调测试
@@ -380,3 +406,194 @@
 - 停用后的家属档案不允许继续作为老人新增/编辑时的可选项
 - 已绑定该家属的历史老人记录仍允许展示，但应提示“关联家属已停用”或“当前不可选”
 - 老人删除只做自身逻辑删除，不自动改变家属档案状态
+
+### 10.8 2026-03 第二轮后端规则收口
+
+本轮只处理“数据库与后端主规则收口”，不改前端页面，不扩套餐加入购物车、套餐下单、套餐再来一单、套餐结算链路。
+
+当前补齐后的后端规则如下：
+
+- `setmeal.dining_point_id` 成为正式业务字段，套餐必须显式归属一个助餐点
+- 套餐内菜品必须全部属于同一个助餐点，且必须与套餐自身 `dining_point_id` 一致
+- `dish.dining_point_id`、`setmeal.dining_point_id` 在管理端新增/编辑时都按必填处理
+- 用户端 `GET /user/dish/list`、`GET /user/setmeal/list` 必须传 `diningPointId`
+- 用户端可售查询不再返回全平台数据，只返回指定助餐点下 `status = 1` 的菜品/套餐
+- `dining_point.status` 本轮统一按 `1 = 营业`、`0 = 休息` 解释
+- 助餐点休息时：
+  - 不允许用户端加载可售菜品/套餐
+  - 不允许新加入购物车
+  - 不允许提交新订单
+  - 不允许“再来一单”回写购物车
+- 订单创建前统一校验：
+  - `elderId` 必须存在且属于当前 `FAMILY`
+  - `elderly.dining_point_id` 必须存在
+  - 目标助餐点必须营业
+  - 购物车内所有菜品必须属于该老人当前助餐点
+- `orders.dining_point_id` 始终取自 `elderly.dining_point_id`，不再从购物车内容反推
+- 缓存键中，用户端套餐缓存已按 `diningPointId + categoryId` 组合；管理端修改菜品、套餐、助餐点时会统一清理用户可售缓存
+
+本轮新增的增量 SQL：
+
+- `setmeal_dining_point_supply_update.sql`
+
+该脚本负责：
+
+- 安全新增 `setmeal.dining_point_id`
+- 创建 `idx_setmeal_dining_point_id`
+- 按“套餐内有效菜品唯一助餐点”回填历史数据
+- 输出未能唯一回填的历史套餐诊断结果
+
+### 10.9 2026-03 第二轮 FAMILY 购物车、结算、地址与金额闭环
+
+本轮只处理 `FAMILY` 端下单主链路，不改 `ADMIN / OPERATOR / VOLUNTEER` 页面，不扩套餐购物车和套餐下单。
+
+当前 `FAMILY` 端的真实规则如下：
+
+- 页面主入口：
+  - `/family-order`
+  - `/family-history`
+  - `/family-addresses`
+- `GET /user/shoppingCart/summary` 成为 `FAMILY` 金额真相，统一返回：
+  - `elderId`
+  - `diningPointId`
+  - `totalCount`
+  - `dishAmount`
+  - `deliveryFee`
+  - `tablewareFee`
+  - `subsidyAmount`
+  - `payAmount`
+  - `effectiveTablewareNumber`
+- `POST /user/shoppingCart/remove` 补齐了购物车整项删除能力。
+- `OrdersSubmitDTO` 与前端 `submitOrder` 当前稳定携带：
+  - `elderId`
+  - `addressBookId`
+  - `remark`
+  - `estimatedDeliveryTime`
+  - `tablewareStatus`
+  - `tablewareNumber`
+  - `dishAmount`
+  - `deliveryFee`
+  - `tablewareFee`
+  - `subsidyAmount`
+  - `payAmount`
+- 后端会在提交时重新计算金额并和客户端金额做严格比对；金额不一致时会拒绝并提示刷新。
+- 当前 FAMILY 主流程的金额规则固定为：
+  - `dishAmount = sum(item.amount * item.number)`
+  - `deliveryFee = 0`
+  - `tablewareFee = effectiveTablewareNumber * 1`
+  - `subsidyAmount = 0`
+  - `payAmount = dishAmount + deliveryFee + tablewareFee - subsidyAmount`
+- 餐具模式映射固定为：
+  - 不需要：`tablewareStatus = 0`，`tablewareNumber = 0`
+  - 按餐量提供：`tablewareStatus = 1`，数量以后端 `effectiveTablewareNumber = totalCount` 为准
+  - 自定义：`tablewareStatus = 0`，`tablewareNumber > 0`
+- 老人接口 `UserElderlyVO` 当前已返回 `diningPointStatus`，前端直接用它判断所属助餐点是否营业。
+- 地址链路当前规则：
+  - `/user/addressBook/default` 查不到默认地址时返回成功空值，不再作为异常
+  - 地址列表按 `is_default desc, id desc` 排序
+  - 用户首个地址自动设为默认地址
+  - 地址页在 checkout 模式下返回 `/family-order?resumeCheckout=1&selectedAddressId=...`
+- 下单成功后会在同一事务内清空后端购物车，并跳转 `/family-history?createdOrderId=...` 高亮新订单。
+- 如果“提交成功但支付失败”，当前也按“订单已创建”处理：
+  - 不保留购物车
+  - 跳历史订单继续支付
+  - 避免重复下单
+
+### 10.10 2026-03 第三轮助餐点休息态、定时任务与统计收口
+
+本轮只处理“助餐点休息态影响范围 + 订单定时任务 + 统计 SQL/页面口径统一”。
+
+当前规则如下：
+
+- 助餐点切为休息后，只阻断新单生成链路：
+  - 不允许加载该点可售菜品/套餐
+  - 不允许新加入购物车
+  - 不允许提交新订单
+  - 不允许“再来一单”回写购物车
+  - 不允许待支付订单继续支付推进
+- 助餐点切为休息后，不批量改已有订单：
+  - `1 待支付`：保留原订单，不能继续支付，仍按支付超时规则自动取消
+  - `2 待调度`：允许继续
+  - `3 制作中`：允许继续
+  - `4 待取餐`：允许继续
+  - `5 配送中`：允许继续
+  - `6 已完成 / 7 已取消`：不处理
+- `payment()` 在把订单从 `待支付` 推进到 `待调度` 前，会再次校验订单所属助餐点是否营业。
+- `paySuccess()` 也增加了同层保护，避免绕过前置支付接口直接把休息态订单推进到 `待调度`。
+- 定时任务当前只保留合理逻辑：
+  - 每分钟扫描待支付超时订单，超 15 分钟自动取消，取消原因写为“支付超时自动取消”
+  - 不再保留“配送中超过 1 天自动完成”的旧外卖逻辑
+  - 额外增加超时履约识别，只做日志/统计，不改订单状态
+- 异常履约识别口径：
+  - 优先使用 `estimated_delivery_time`
+  - 为空时回退 `expected_time`
+  - 两者都为空时，本轮不纳入异常识别
+  - `3 制作中` 超时：制作中超时
+  - `4 待取餐` 超时：待取餐超时
+  - `5 配送中` 超时：配送中超时
+- 统计口径统一按当前状态语义执行：
+  - `1` 待支付
+  - `2` 待调度
+  - `3` 制作中
+  - `4` 待取餐
+  - `5` 配送中
+  - `6` 已完成
+  - `7` 已取消
+- 销量 Top10、营业额、有效订单等统计统一只认 `status = 6` 的已完成订单。
+- 为兼容已有前后端字段名，部分 VO 仍保留历史包袱，但当前语义已经固定为：
+  - `OrderStatisticsVO.toBeConfirmed = 2 待调度`
+  - `OrderStatisticsVO.confirmed = 3 制作中`
+  - `OrderStatisticsVO.deliveryInProgress = 4 待取餐`
+  - `OrderOverViewVO.waitingOrders = 2 待调度`
+  - `OrderOverViewVO.deliveredOrders = 3 制作中`
+  - `OrderOverViewVO.completedOrders = 6 已完成`
+  - `OrderOverViewVO.cancelledOrders = 7 已取消`
+
+### 10.11 2026-03 第二轮前端管理页收口
+
+本轮只处理与第二轮规则直接相关的前端管理页、FAMILY 金额摘要和文档同步，不新增新的业务方向。
+
+当前前端收口状态如下：
+
+- 管理端菜品页面：
+  - 新增/编辑表单必须提交 `diningPointId`
+  - 助餐点下拉默认只展示营业中的助餐点
+  - 编辑历史记录时，如果当前绑定的是休息中助餐点：
+    - 当前旧值继续回显
+    - 标签显示为 `名称（休息中）`
+    - 其它可切换选项只包含营业中的助餐点
+    - 不改该字段时允许保存其它字段
+    - 改字段后只能切到营业中的助餐点
+  - 列表页当前已展示所属助餐点名称
+- 管理端套餐页面：
+  - 新增/编辑表单必须提交 `diningPointId`
+  - 套餐列表页展示所属助餐点名称
+  - 套餐选菜弹层当前会带上 `diningPointId` 查询 `/admin/dish/list`
+  - 分类切换、关键字搜索都只查询当前助餐点下的菜品
+  - 切换套餐所属助餐点时，若已有已选菜品，前端会提示并清空已选菜品后再重新选择
+- FAMILY 点餐页：
+  - 当前仍只接菜品，不扩展套餐 UI
+  - 所有 `/user/dish/list` 查询始终携带当前老人所属 `diningPointId`
+  - 进入页面、刷新购物车、打开结算、提交订单时都会重新校验老人所属助餐点状态
+  - 助餐点休息时，前端统一提示“当前所属助餐点已休息，暂不可点餐/下单”
+- FAMILY 金额展示：
+  - 购物车抽屉、底部结算栏、结算弹层、历史订单详情当前统一展示：
+    - 菜品金额
+    - 配送费
+    - 餐具费
+    - 实付金额
+  - `subsidyAmount` 当前固定为 `0`，在详细视图继续展示为 `0`
+  - 底部结算栏已经不再只显示总价，而是与其它页面保持同一金额口径的摘要展示
+
+### 10.12 2026-03 当前支付链路问题说明
+
+当前支付功能的状态应按以下方式理解：
+
+- 后端支付状态保护本身仍然有效：
+  - 只有 `1 待支付` 订单允许继续支付推进
+  - 非待支付状态返回“订单状态错误”属于当前后端设计，不是单独新增的异常逻辑
+- 当前真正未收口的问题在于“下单返回契约 + 支付串联”：
+  - 前端依赖 `/user/order/submit` 返回 `id + orderNumber`
+  - 如果返回缺字段、字段结构不一致，前端无法安全继续支付
+- 为避免误拿历史订单号、旧订单号或非当前订单信息，当前版本已经明确不再用前端回查历史订单的方式兜底支付
+- 因此，这部分问题后续推荐优先从后端返回契约稳定化入手，而不是继续扩大前端兜底逻辑

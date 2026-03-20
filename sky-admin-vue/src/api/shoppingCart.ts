@@ -14,11 +14,29 @@ export interface ShoppingCartItem {
   createTime?: string
 }
 
+export interface ShoppingCartSummary {
+  elderId?: number
+  diningPointId?: number
+  totalCount: number
+  dishAmount: number
+  deliveryFee: number
+  tablewareFee: number
+  subsidyAmount: number
+  payAmount: number
+  effectiveTablewareNumber: number
+}
+
 export interface ShoppingCartPayload {
   elderId: number
   dishId?: number
   setmealId?: number
   dishFlavor?: string
+}
+
+export interface ShoppingCartSummaryParams {
+  elderId: number
+  tablewareStatus?: number
+  tablewareNumber?: number
 }
 
 export const addShoppingCart = (data: ShoppingCartPayload) =>
@@ -35,10 +53,24 @@ export const subShoppingCart = (data: ShoppingCartPayload) =>
     data
   })
 
+export const removeShoppingCart = (data: ShoppingCartPayload) =>
+  request({
+    url: '/user/shoppingCart/remove',
+    method: 'post',
+    data
+  })
+
 export const getShoppingCartList = () =>
   request({
     url: '/user/shoppingCart/list',
     method: 'get'
+  })
+
+export const getShoppingCartSummary = (params: ShoppingCartSummaryParams) =>
+  request({
+    url: '/user/shoppingCart/summary',
+    method: 'get',
+    params
   })
 
 export const cleanShoppingCart = () =>

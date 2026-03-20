@@ -20,6 +20,9 @@ public class SetmealDTO implements Serializable {
     @ApiModelProperty("分类id")
     private Long categoryId;
 
+    @ApiModelProperty("所属助餐点ID")
+    private Long diningPointId;
+
     //套餐名称
     @ApiModelProperty("套餐名称")
     private String name;
@@ -39,6 +42,9 @@ public class SetmealDTO implements Serializable {
     //图片
     @ApiModelProperty("图片")
     private String image;
+
+    @ApiModelProperty("所属助餐点名称")
+    private String diningPointName;
 
     //套餐菜品关系
     @ApiModelProperty("套餐菜品关系")

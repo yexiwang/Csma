@@ -3,7 +3,7 @@
   <div v-else class="order-page">
     <div class="stats-grid">
       <el-card shadow="never" class="stat-card">
-        <div class="stat-label">待制作</div>
+        <div class="stat-label">待调度</div>
         <div class="stat-value">{{ statistics.toBeConfirmed || 0 }}</div>
       </el-card>
       <el-card shadow="never" class="stat-card">
@@ -257,7 +257,7 @@ export default class OrderDispatch extends Vue {
 
   private statusTabs: StatusTab[] = [
     { label: '全部', value: null },
-    { label: '待制作', value: ORDER_STATUS.TO_BE_SCHEDULED },
+    { label: '待调度', value: ORDER_STATUS.TO_BE_SCHEDULED },
     { label: '制作中', value: ORDER_STATUS.PREPARING },
     { label: '待取餐', value: ORDER_STATUS.MEAL_READY },
     { label: '配送中', value: ORDER_STATUS.DELIVERY_IN_PROGRESS },

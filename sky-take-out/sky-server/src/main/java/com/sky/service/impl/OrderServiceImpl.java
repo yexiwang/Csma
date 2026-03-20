@@ -37,6 +37,7 @@ import com.sky.mapper.ShoppingCartMapper;
 import com.sky.mapper.UserMapper;
 import com.sky.result.PageResult;
 import com.sky.service.OrderService;
+import com.sky.service.support.FamilyCheckoutCalculator;
 import com.sky.utils.HttpClientUtil;
 import com.sky.utils.WeChatPayUtil;
 import com.sky.vo.OrderPaymentVO;
@@ -44,6 +45,7 @@ import com.sky.vo.OrderStatisticsVO;
 import com.sky.vo.OperatorOrderOverviewVO;
 import com.sky.vo.OrderSubmitVO;
 import com.sky.vo.OrderVO;
+import com.sky.vo.ShoppingCartSummaryVO;
 import com.sky.websocket.WebSocketServer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -54,6 +56,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -98,6 +101,8 @@ public class OrderServiceImpl implements OrderService {
     @Autowired
     private DiningPointMapper diningPointMapper;
     @Autowired
+    private FamilyCheckoutCalculator familyCheckoutCalculator;
+    @Autowired
     private WeChatPayUtil weChatPayUtil;
 
     @Value("${sky.baidu.ak}")
@@ -112,6 +117,9 @@ public class OrderServiceImpl implements OrderService {
         requireRole(ROLE_FAMILY);
 
         Long userId = BaseContext.getCurrentId();
+        if (ordersSubmitDTO.getAddressBookId() == null) {
+            throw new AddressBookBusinessException(MessageConstant.ADDRESS_BOOK_IS_NULL);
+        }
         AddressBook addressBook = addressBookMapper.getById(ordersSubmitDTO.getAddressBookId());
         if (addressBook == null || !userId.equals(addressBook.getUserId())) {
             throw new AddressBookBusinessException(MessageConstant.ADDRESS_BOOK_IS_NULL);
@@ -136,19 +144,24 @@ public class OrderServiceImpl implements OrderService {
             throw new ShoppingCartBusinessException(MessageConstant.SHOPPING_CART_IS_NULL);
         }
 
-        DiningPoint diningPoint = requireElderlyDiningPoint(submitElderly);
+        DiningPoint diningPoint = requireAvailableDiningPointForOrder(submitElderly);
         validateShoppingCartElderly(shoppingCartList, submitElderly.getId());
-        validateShoppingCartDishesForElderlyDiningPoint(shoppingCartList, diningPoint.getId());
+        validateShoppingCartItemsForOrder(shoppingCartList, diningPoint.getId());
         Long diningPointId = diningPoint.getId();
-        BigDecimal goodsAmount = calculateGoodsAmount(shoppingCartList);
-        int packAmountValue = Math.max(0, ordersSubmitDTO.getPackAmount() == null ? 0 : ordersSubmitDTO.getPackAmount());
-        BigDecimal packAmount = BigDecimal.valueOf(packAmountValue);
-        BigDecimal orderAmount = goodsAmount.add(packAmount);
+        ShoppingCartSummaryVO summary = familyCheckoutCalculator.calculate(
+                submitElderly.getId(),
+                diningPointId,
+                shoppingCartList,
+                ordersSubmitDTO.getTablewareStatus(),
+                ordersSubmitDTO.getTablewareNumber()
+        );
+        validateSubmittedAmounts(ordersSubmitDTO, summary);
         String fullAddress = buildFullAddress(addressBook);
-        checkOutOfRange(diningPoint.getAddress(), fullAddress);
+        // 社区助餐主流程当前不启用苍穹外卖遗留的地图距离校验，保留方法以备后续扩展。
+        // checkOutOfRange(diningPoint.getAddress(), fullAddress);
 
         Orders orders = new Orders();
-        BeanUtils.copyProperties(ordersSubmitDTO, orders);
+        BeanUtils.copyProperties(ordersSubmitDTO, orders, "packAmount", "tablewareNumber");
         orders.setNumber(String.valueOf(System.currentTimeMillis()));
         orders.setStatus(Orders.PENDING_PAYMENT);
         orders.setUserId(userId);
@@ -156,16 +169,19 @@ public class OrderServiceImpl implements OrderService {
         orders.setDiningPointId(diningPointId);
         orders.setOrderTime(LocalDateTime.now());
         orders.setPayStatus(Orders.UN_PAID);
-        orders.setPackAmount(packAmountValue);
+        orders.setPackAmount(0);
+        orders.setTablewareNumber(ordersSubmitDTO.getTablewareNumber() == null ? 0 : ordersSubmitDTO.getTablewareNumber());
         orders.setExpectedTime(ordersSubmitDTO.getEstimatedDeliveryTime());
         orders.setEstimatedDeliveryTime(ordersSubmitDTO.getEstimatedDeliveryTime());
         orders.setUserName(addressBook.getConsignee());
         orders.setPhone(addressBook.getPhone());
         orders.setAddress(fullAddress);
         orders.setConsignee(addressBook.getConsignee());
-        orders.setSubsidyAmount(BigDecimal.ZERO);
-        orders.setPersonalPay(orderAmount);
-        orders.setAmount(orderAmount);
+        orders.setSubsidyAmount(summary.getSubsidyAmount());
+        orders.setDeliveryFee(summary.getDeliveryFee());
+        orders.setTablewareFee(summary.getTablewareFee());
+        orders.setPersonalPay(summary.getPayAmount());
+        orders.setAmount(summary.getPayAmount());
 
         orderMapper.insert(orders);
 
@@ -177,6 +193,7 @@ public class OrderServiceImpl implements OrderService {
             orderDetailList.add(orderDetail);
         }
         orderDetailMapper.insertBatch(orderDetailList);
+        shoppingCartMapper.deleteByUserId(userId);
 
         return OrderSubmitVO.builder()
                 .id(orders.getId())
@@ -190,6 +207,13 @@ public class OrderServiceImpl implements OrderService {
     public OrderPaymentVO payment(OrdersPaymentDTO ordersPaymentDTO) throws Exception {
         requireRole(ROLE_FAMILY);
         Long userId = BaseContext.getCurrentId();
+        String orderNumber = ordersPaymentDTO.getOrderNumber();
+        Orders ordersDB = orderMapper.getByNumber(orderNumber);
+        if (ordersDB == null || !userId.equals(ordersDB.getUserId())) {
+            throw new OrderBusinessException(MessageConstant.ORDER_NOT_FOUND);
+        }
+        assertStatus(ordersDB, Orders.PENDING_PAYMENT);
+        requireAvailableDiningPointForPendingPayment(ordersDB);
 
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("code", "ORDERPAID");
@@ -199,16 +223,10 @@ public class OrderServiceImpl implements OrderService {
         Integer orderPaidStatus = Orders.PAID;
         Integer orderStatus = Orders.TO_BE_SCHEDULED;
         LocalDateTime checkoutTime = LocalDateTime.now();
-        String orderNumber = ordersPaymentDTO.getOrderNumber();
 
         log.info("模拟支付成功，按订单号更新订单状态: {}", orderNumber);
         orderMapper.updateStatus(orderStatus, orderPaidStatus, checkoutTime, orderNumber);
 
-        Orders ordersDB = orderMapper.getByNumber(orderNumber);
-        if (ordersDB == null || !userId.equals(ordersDB.getUserId())) {
-            throw new OrderBusinessException(MessageConstant.ORDER_NOT_FOUND);
-        }
-        shoppingCartMapper.deleteByUserId(userId);
         Map<String, Object> map = new HashMap<>();
         map.put("type", 1);
         map.put("orderId", ordersDB.getId());
@@ -222,6 +240,19 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public void paySuccess(String outTradeNo) {
         Orders ordersDB = orderMapper.getByNumber(outTradeNo);
+        if (ordersDB == null) {
+            return;
+        }
+        if (!Orders.PENDING_PAYMENT.equals(ordersDB.getStatus())) {
+            log.warn("ignore paySuccess because order is no longer pending payment, orderNumber={}, status={}",
+                    outTradeNo, ordersDB.getStatus());
+            return;
+        }
+        if (!isDiningPointAvailableForPendingPayment(ordersDB)) {
+            log.warn("ignore paySuccess because dining point is resting, orderNumber={}, orderId={}, diningPointId={}",
+                    outTradeNo, ordersDB.getId(), ordersDB.getDiningPointId());
+            return;
+        }
         Orders orders = Orders.builder()
                 .id(ordersDB.getId())
                 .status(Orders.TO_BE_SCHEDULED)
@@ -229,9 +260,6 @@ public class OrderServiceImpl implements OrderService {
                 .checkoutTime(LocalDateTime.now())
                 .build();
         orderMapper.update(orders);
-        if (ordersDB.getUserId() != null) {
-            shoppingCartMapper.deleteByUserId(ordersDB.getUserId());
-        }
     }
 
     @Override
@@ -287,7 +315,15 @@ public class OrderServiceImpl implements OrderService {
             throw new OrderBusinessException("原订单缺少服务老人信息，无法恢复到购物车");
         }
 
-        List<ShoppingCart> shoppingCartList = buildRepeatShoppingCartList(orderDetailList, userId, ordersDB.getElderId());
+        Elderly elderly = elderlyMapper.getById(ordersDB.getElderId());
+        if (elderly == null) {
+            throw new OrderBusinessException("服务老人不存在");
+        }
+        if (!userId.equals(elderly.getUserId())) {
+            throw new OrderBusinessException("无权为该老人恢复购物车");
+        }
+        DiningPoint diningPoint = requireAvailableDiningPointForRepeat(elderly);
+        List<ShoppingCart> shoppingCartList = buildRepeatShoppingCartList(orderDetailList, userId, elderly.getId(), diningPoint.getId());
         shoppingCartMapper.deleteByUserId(userId);
         shoppingCartMapper.insertBatch(shoppingCartList);
     }
@@ -324,6 +360,10 @@ public class OrderServiceImpl implements OrderService {
         mealReady.put("status", Orders.MEAL_READY);
 
         OrderStatisticsVO orderStatisticsVO = new OrderStatisticsVO();
+        // Legacy fields are kept for compatibility:
+        // toBeConfirmed => status 2 待调度
+        // confirmed => status 3 制作中
+        // deliveryInProgress => status 4 待取餐
         orderStatisticsVO.setToBeConfirmed(orderMapper.countByMap(toBeScheduled));
         orderStatisticsVO.setConfirmed(orderMapper.countByMap(preparing));
         orderStatisticsVO.setDeliveryInProgress(orderMapper.countByMap(mealReady));
@@ -786,6 +826,27 @@ public class OrderServiceImpl implements OrderService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
+    private void validateSubmittedAmounts(OrdersSubmitDTO ordersSubmitDTO, ShoppingCartSummaryVO summary) {
+        if (!moneyEquals(ordersSubmitDTO.getDishAmount(), summary.getDishAmount())
+                || !moneyEquals(ordersSubmitDTO.getDeliveryFee(), summary.getDeliveryFee())
+                || !moneyEquals(ordersSubmitDTO.getTablewareFee(), summary.getTablewareFee())
+                || !moneyEquals(ordersSubmitDTO.getSubsidyAmount(), summary.getSubsidyAmount())
+                || !moneyEquals(ordersSubmitDTO.getPayAmount(), summary.getPayAmount())) {
+            throw new OrderBusinessException("订单金额已变化，请刷新后重试");
+        }
+    }
+
+    private boolean moneyEquals(BigDecimal left, BigDecimal right) {
+        if (left == null || right == null) {
+            return false;
+        }
+        return normalizeMoney(left).compareTo(normalizeMoney(right)) == 0;
+    }
+
+    private BigDecimal normalizeMoney(BigDecimal amount) {
+        return amount == null ? BigDecimal.ZERO : amount.setScale(2, RoundingMode.HALF_UP);
+    }
+
     private DiningPoint requireElderlyDiningPoint(Elderly elderly) {
         if (elderly.getDiningPointId() == null) {
             throw new OrderBusinessException("当前老人未绑定助餐点，无法下单");
@@ -897,6 +958,150 @@ public class OrderServiceImpl implements OrderService {
         return shoppingCartList;
     }
 
+    private DiningPoint requireAvailableDiningPointForOrder(Elderly elderly) {
+        if (elderly.getDiningPointId() == null) {
+            throw new OrderBusinessException("当前老人未绑定助餐点，无法下单");
+        }
+
+        DiningPoint diningPoint = diningPointMapper.getById(elderly.getDiningPointId());
+        if (diningPoint == null) {
+            throw new OrderBusinessException("当前老人绑定的助餐点不存在，无法下单");
+        }
+        if (!StatusConstant.ENABLE.equals(diningPoint.getStatus())) {
+            throw new OrderBusinessException(MessageConstant.DINING_POINT_RESTING);
+        }
+        if (diningPoint.getAddress() == null || diningPoint.getAddress().trim().isEmpty()) {
+            throw new OrderBusinessException("当前老人绑定助餐点缺少地址，无法下单");
+        }
+        return diningPoint;
+    }
+
+    private DiningPoint requireAvailableDiningPointForRepeat(Elderly elderly) {
+        if (elderly.getDiningPointId() == null) {
+            throw new OrderBusinessException("当前老人未绑定助餐点，无法再来一单");
+        }
+
+        DiningPoint diningPoint = diningPointMapper.getById(elderly.getDiningPointId());
+        if (diningPoint == null) {
+            throw new OrderBusinessException("当前老人绑定的助餐点不存在，无法再来一单");
+        }
+        if (!StatusConstant.ENABLE.equals(diningPoint.getStatus())) {
+            throw new OrderBusinessException(MessageConstant.DINING_POINT_RESTING);
+        }
+        return diningPoint;
+    }
+
+    private void requireAvailableDiningPointForPendingPayment(Orders orders) {
+        if (!isDiningPointAvailableForPendingPayment(orders)) {
+            throw new OrderBusinessException(MessageConstant.ORDER_PAYMENT_DINING_POINT_RESTING);
+        }
+    }
+
+    private boolean isDiningPointAvailableForPendingPayment(Orders orders) {
+        DiningPoint diningPoint = resolveDiningPointForExistingOrder(orders);
+        return diningPoint != null && StatusConstant.ENABLE.equals(diningPoint.getStatus());
+    }
+
+    private DiningPoint resolveDiningPointForExistingOrder(Orders orders) {
+        if (orders == null) {
+            return null;
+        }
+        if (orders.getDiningPointId() != null) {
+            return diningPointMapper.getById(orders.getDiningPointId());
+        }
+        if (orders.getElderId() == null) {
+            return null;
+        }
+        Elderly elderly = elderlyMapper.getById(orders.getElderId());
+        if (elderly == null || elderly.getDiningPointId() == null) {
+            return null;
+        }
+        return diningPointMapper.getById(elderly.getDiningPointId());
+    }
+
+    private void validateShoppingCartItemsForOrder(List<ShoppingCart> shoppingCartList, Long expectedDiningPointId) {
+        for (ShoppingCart cart : shoppingCartList) {
+            if (cart.getSetmealId() != null) {
+                throw new OrderBusinessException("当前版本暂不支持套餐下单");
+            }
+            if (cart.getDishId() == null) {
+                throw new OrderBusinessException("购物车菜品数据异常，无法提交订单");
+            }
+
+            Dish dish = dishMapper.getById(cart.getDishId());
+            if (dish == null) {
+                throw new OrderBusinessException("购物车中存在已删除菜品，无法提交订单");
+            }
+            if (!StatusConstant.ENABLE.equals(dish.getStatus())) {
+                throw new OrderBusinessException("购物车中存在已停售菜品，无法提交订单");
+            }
+            if (dish.getDiningPointId() == null) {
+                throw new OrderBusinessException("所选菜品未绑定助餐点，无法提交订单");
+            }
+
+            DiningPoint diningPoint = diningPointMapper.getById(dish.getDiningPointId());
+            if (diningPoint == null || !StatusConstant.ENABLE.equals(diningPoint.getStatus())) {
+                throw new OrderBusinessException(MessageConstant.DISH_DINING_POINT_UNAVAILABLE);
+            }
+            if (!expectedDiningPointId.equals(dish.getDiningPointId())) {
+                throw new OrderBusinessException("所选菜品不属于当前老人对应助餐点");
+            }
+        }
+    }
+
+    private List<ShoppingCart> buildRepeatShoppingCartList(List<OrderDetail> orderDetailList, Long userId, Long elderId, Long expectedDiningPointId) {
+        List<ShoppingCart> shoppingCartList = new ArrayList<>();
+
+        for (OrderDetail detail : orderDetailList) {
+            if (detail.getSetmealId() != null) {
+                throw new OrderBusinessException("当前版本暂不支持套餐再来一单");
+            }
+            if (detail.getDishId() == null) {
+                throw new OrderBusinessException("订单菜品数据异常，无法再来一单");
+            }
+            if (detail.getNumber() == null || detail.getNumber() <= 0) {
+                throw new OrderBusinessException("订单菜品数量异常，无法再来一单");
+            }
+
+            Dish dish = dishMapper.getById(detail.getDishId());
+            if (dish == null) {
+                throw new OrderBusinessException("部分菜品已删除，无法再来一单");
+            }
+            if (!StatusConstant.ENABLE.equals(dish.getStatus())) {
+                throw new OrderBusinessException("部分菜品已下架，无法再来一单");
+            }
+            if (dish.getDiningPointId() == null) {
+                throw new OrderBusinessException("部分菜品未绑定助餐点，无法再来一单");
+            }
+
+            DiningPoint diningPoint = diningPointMapper.getById(dish.getDiningPointId());
+            if (diningPoint == null || !StatusConstant.ENABLE.equals(diningPoint.getStatus())) {
+                throw new OrderBusinessException(MessageConstant.DISH_DINING_POINT_UNAVAILABLE);
+            }
+            if (!expectedDiningPointId.equals(dish.getDiningPointId())) {
+                throw new OrderBusinessException("当前订单菜品已不属于老人当前所属助餐点，无法再来一单");
+            }
+
+            ShoppingCart shoppingCart = new ShoppingCart();
+            shoppingCart.setUserId(userId);
+            shoppingCart.setElderId(elderId);
+            shoppingCart.setDishId(dish.getId());
+            shoppingCart.setDishFlavor(detail.getDishFlavor());
+            shoppingCart.setName(dish.getName());
+            shoppingCart.setImage(dish.getImage());
+            shoppingCart.setAmount(dish.getPrice());
+            shoppingCart.setNumber(detail.getNumber());
+            shoppingCart.setCreateTime(LocalDateTime.now());
+            shoppingCartList.add(shoppingCart);
+        }
+
+        if (CollectionUtils.isEmpty(shoppingCartList)) {
+            throw new OrderBusinessException("原订单中没有可恢复的菜品");
+        }
+
+        return shoppingCartList;
+    }
+
     private void checkOutOfRange(String diningPointAddress, String address) {
         Map<String, String> map = new HashMap<>();
         map.put("address", diningPointAddress);
@@ -947,6 +1152,7 @@ public class OrderServiceImpl implements OrderService {
         }
         log.info("delivery distance: {}m", distance);
     }
+
 }
 
 

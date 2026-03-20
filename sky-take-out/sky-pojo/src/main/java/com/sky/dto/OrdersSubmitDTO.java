@@ -31,5 +31,15 @@ public class OrdersSubmitDTO implements Serializable {
 
     private Integer packAmount;
 
+    private BigDecimal dishAmount;
+
+    private BigDecimal deliveryFee;
+
+    private BigDecimal tablewareFee;
+
+    private BigDecimal subsidyAmount;
+
+    private BigDecimal payAmount;
+
     private BigDecimal amount;
 }

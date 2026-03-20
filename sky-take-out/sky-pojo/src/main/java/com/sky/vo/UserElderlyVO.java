@@ -18,4 +18,6 @@ public class UserElderlyVO implements Serializable {
     private Long diningPointId;
 
     private String diningPointName;
+
+    private Integer diningPointStatus;
 }

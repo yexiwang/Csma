@@ -40,6 +40,13 @@ public interface SetmealMapper {
     Page<SetmealVO> pageQuery(SetmealPageQueryDTO setmealPageQueryDTO);
 
     /**
+     * 鏍规嵁濂楅id鏌ヨ濂楅鏁版嵁锛屽寘鍚姪椁愮偣鍚嶇О
+     * @param id 濂楅ID
+     * @return 濂楅璇︽儏
+     */
+    SetmealVO getByIdWithDiningPoint(Long id);
+
+    /**
      * 根据套餐id查询套餐数据
      * @param id
      * @return

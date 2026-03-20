@@ -1,23 +1,53 @@
 import {
   buildDishQuantityMap,
   calculateCartItemSubtotal,
-  calculateCartSummary,
-  formatAmount
+  calculateOrderDishAmount,
+  createEmptyCartSummary,
+  formatAmount,
+  normalizeCartSummary
 } from '@/utils/familyCart'
 import { ShoppingCartItem } from '@/api/shoppingCart'
 
 describe('Utils:familyCart', () => {
-  it('returns empty summary with default fees', () => {
-    expect(calculateCartSummary([])).toEqual({
+  it('creates an empty summary with safe defaults', () => {
+    expect(createEmptyCartSummary()).toEqual({
+      elderId: undefined,
+      diningPointId: undefined,
       totalCount: 0,
       dishAmount: 0,
       deliveryFee: 0,
+      tablewareFee: 0,
       subsidyAmount: 0,
-      payAmount: 0
+      payAmount: 0,
+      effectiveTablewareNumber: 0
     })
   })
 
-  it('calculates single item subtotal and summary', () => {
+  it('normalizes backend summary payload consistently', () => {
+    expect(normalizeCartSummary({
+      elderId: '12',
+      diningPointId: '7',
+      totalCount: 3,
+      dishAmount: 25,
+      deliveryFee: 0,
+      tablewareFee: 2,
+      subsidyAmount: 0,
+      payAmount: 27,
+      effectiveTablewareNumber: 2
+    })).toEqual({
+      elderId: 12,
+      diningPointId: 7,
+      totalCount: 3,
+      dishAmount: 25,
+      deliveryFee: 0,
+      tablewareFee: 2,
+      subsidyAmount: 0,
+      payAmount: 27,
+      effectiveTablewareNumber: 2
+    })
+  })
+
+  it('calculates subtotals, total dish amount and quantity map', () => {
     const items: ShoppingCartItem[] = [
       {
         id: 1,
@@ -26,40 +56,9 @@ describe('Utils:familyCart', () => {
         image: '',
         amount: 12.5,
         number: 2
-      }
-    ]
-
-    expect(calculateCartItemSubtotal(items[0])).toBe(25)
-    expect(calculateCartSummary(items)).toEqual({
-      totalCount: 2,
-      dishAmount: 25,
-      deliveryFee: 0,
-      subsidyAmount: 0,
-      payAmount: 25
-    })
-  })
-
-  it('aggregates multiple items and dish quantities', () => {
-    const items: ShoppingCartItem[] = [
-      {
-        id: 1,
-        dishId: 101,
-        name: '红烧肉',
-        image: '',
-        amount: 18.8,
-        number: 1
       },
       {
         id: 2,
-        dishId: 101,
-        dishFlavor: '少盐',
-        name: '红烧肉',
-        image: '',
-        amount: 18.8,
-        number: 2
-      },
-      {
-        id: 3,
         dishId: 202,
         name: '米饭',
         image: '',
@@ -68,33 +67,16 @@ describe('Utils:familyCart', () => {
       }
     ]
 
+    expect(calculateCartItemSubtotal(items[0])).toBe(25)
+    expect(calculateOrderDishAmount(items)).toBe(31)
     expect(buildDishQuantityMap(items)).toEqual({
-      101: 3,
+      101: 2,
       202: 3
-    })
-    expect(calculateCartSummary(items, { deliveryFee: 3, subsidyAmount: 2.5 })).toEqual({
-      totalCount: 6,
-      dishAmount: 62.4,
-      deliveryFee: 3,
-      subsidyAmount: 2.5,
-      payAmount: 62.9
     })
   })
 
   it('handles decimal formatting consistently', () => {
-    const items: ShoppingCartItem[] = [
-      {
-        id: 1,
-        dishId: 99,
-        name: '豆腐',
-        image: '',
-        amount: 9.99,
-        number: 3
-      }
-    ]
-
-    const summary = calculateCartSummary(items)
-    expect(summary.dishAmount).toBe(29.97)
-    expect(formatAmount(summary.payAmount)).toBe('29.97')
+    expect(formatAmount(29.97)).toBe('29.97')
+    expect(formatAmount('29.971')).toBe('29.97')
   })
 })

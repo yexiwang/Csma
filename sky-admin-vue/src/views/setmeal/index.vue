@@ -94,6 +94,11 @@
         <el-table-column prop="categoryName"
                          label="套餐分类"
         />
+        <el-table-column label="所属助餐点">
+          <template slot-scope="scope">
+            <span>{{ scope.row.diningPointName || '未设置' }}</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="price"
                          label="套餐价"
         >

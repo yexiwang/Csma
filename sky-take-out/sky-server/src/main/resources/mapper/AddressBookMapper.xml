@@ -15,6 +15,7 @@
                 and is_default = #{isDefault}
             </if>
         </where>
+        order by is_default desc, id desc
     </select>
 
     <update id="update" parameterType="addressBook">

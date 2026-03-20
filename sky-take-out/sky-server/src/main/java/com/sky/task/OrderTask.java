@@ -1,6 +1,5 @@
 package com.sky.task;
 
-
 import com.sky.entity.Orders;
 import com.sky.mapper.OrderMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -9,63 +8,53 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
-import java.util.Date;
-import java.util.List;
 
 /**
- * 自定义定时任务类  定时处理订单状态
+ * Order scheduler for the community meal-delivery workflow.
+ * It only handles safe timeout cleanup and overdue warning logs.
  */
-@Component//把普通pojo实例化到spring容器中，相当于配置文件中的<bean id="" class=""/>
+@Component
 @Slf4j
 public class OrderTask {
+
+    private static final long PAYMENT_TIMEOUT_MINUTES = 15;
 
     @Autowired
     private OrderMapper orderMapper;
 
     /**
-     * 处理支付超时订单
-     *
-     * 情况：下单后未支付，订单一直处于“1待支付”状态
-     * 处理：通过定时任务每分钟检查一次是否存在支付超时订单（下单后超过15分钟仍未支付则判定为支付超时订单），如果存在则修改订单状态为“已取消”
+     * Cancel unpaid orders that have timed out.
      */
     @Scheduled(cron = "0 * * * * ?")
-    public void processTimeOutTask(){
-        log.info("定时处理超时订单：{}", LocalDateTime.now());
+    public void processTimeOutTask() {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime timeoutBefore = now.minusMinutes(PAYMENT_TIMEOUT_MINUTES);
+        log.info("process payment timeout orders, now={}, timeoutBefore={}", now, timeoutBefore);
 
-        //select * from orders where status = 1 and order_time < (当前时间-15分钟)
-        LocalDateTime  time =LocalDateTime.now().minusMinutes(15);//获取当前时间减去15分钟的时间
-        List<Orders> ordersList = orderMapper.getByStatusAndTimeLT(Orders.PENDING_PAYMENT, time);
-        if (ordersList != null && ordersList.size() > 0) {
-            for (Orders orders : ordersList) {
-                //更新订单状态为“已取消”
-                orders.setStatus(Orders.CANCELLED);//订单状态 6取消
-                orders.setCancelReason("支付超时,自动取消");
-                orders.setCancelTime(LocalDateTime.now());
-                orderMapper.update(orders);
-            }
+        for (Orders order : orderMapper.getByStatusAndTimeLT(Orders.PENDING_PAYMENT, timeoutBefore)) {
+            order.setStatus(Orders.CANCELLED);
+            order.setCancelReason("支付超时自动取消");
+            order.setCancelTime(now);
+            orderMapper.update(order);
         }
     }
 
     /**
-     * 处理一直待派送订单
-     *
-     * 情况：用户收货后管理端未点击完成按钮，订单一直处于“4派送中”状态
-     * 处理：通过定时任务每天凌晨1点检查一次是否存在“4派送中”的订单，如果存在则修改订单状态为“5已完成”
+     * Log overdue in-flight orders for manual follow-up. The task does not mutate order status.
      */
-    @Scheduled(cron = "0 0 1 * * ?")
-    public void processDeliveryOrder(){
-        log.info("定时处理待派送中的订单：{}", LocalDateTime.now());
+    @Scheduled(cron = "0 */10 * * * ?")
+    public void processAbnormalOrderWarningTask() {
+        LocalDateTime now = LocalDateTime.now();
+        logOverdueOrders(Orders.CONFIRMED, "preparing_overtime", now);
+        logOverdueOrders(Orders.MEAL_READY, "meal_ready_overtime", now);
+        logOverdueOrders(Orders.DELIVERY_IN_PROGRESS, "delivering_overtime", now);
+    }
 
-        //select * from orders where status = 4 and order_time < (当前时间-1天)
-        LocalDateTime  time =LocalDateTime.now().minusDays(1);
-        List<Orders> ordersList = orderMapper.getByStatusAndTimeLT(Orders.DELIVERY_IN_PROGRESS, time);
-        if (ordersList != null && ordersList.size() > 0) {
-            for (Orders orders : ordersList) {
-                //更新订单状态为“已取消”
-                orders.setStatus(Orders.COMPLETED);//订单状态 5已完成
-                orders.setCancelTime(LocalDateTime.now());
-                orderMapper.update(orders);
-            }
+    private void logOverdueOrders(Integer status, String label, LocalDateTime now) {
+        Integer count = orderMapper.countOverdueByStatus(status, now);
+        int overdueCount = count == null ? 0 : count;
+        if (overdueCount > 0) {
+            log.warn("detected overdue orders, label={}, status={}, count={}, now={}", label, status, overdueCount, now);
         }
     }
 }

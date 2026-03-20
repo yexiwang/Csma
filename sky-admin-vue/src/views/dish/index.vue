@@ -95,6 +95,11 @@
         <el-table-column prop="categoryName"
                          label="菜品分类"
         />
+        <el-table-column label="所属助餐点">
+          <template slot-scope="scope">
+            <span>{{ getDiningPointName(scope.row) }}</span>
+          </template>
+        </el-table-column>
         <el-table-column label="售价">
           <template slot-scope="scope">
             <span style="margin-right: 10px">￥{{ (scope.row.price ).toFixed(2)*100/100 }}</span>
@@ -171,6 +176,7 @@ import {
   dishStatusByStatus,
   dishCategoryList
 } from '@/api/dish'
+import { getDiningPointPage } from '@/api/diningPoint'
 import InputAutoComplete from '@/components/InputAutoComplete/index.vue'
 import Empty from '@/components/Empty/index.vue'
 import { baseUrl } from '@/config.json'
@@ -192,6 +198,7 @@ export default class extends Vue {
   private tableData: [] = []
   private dishState = ''
   private dishCategoryList = []
+  private diningPointNameMap: Record<string, string> = {}
   private categoryId = ''
   private dishStatus = ''
   private isSearch: boolean = false
@@ -209,6 +216,7 @@ export default class extends Vue {
   created() {
     this.init()
     this.getDishCategoryList()
+    this.loadDiningPoints()
   }
 
   initProp(val) {
@@ -293,6 +301,32 @@ export default class extends Vue {
         }
       })
       .catch(() => {})
+  }
+
+  private async loadDiningPoints() {
+    try {
+      const res: any = await getDiningPointPage({ page: 1, pageSize: 500 })
+      const pageData = res && res.data && res.data.data ? res.data.data : null
+      const records = pageData && Array.isArray(pageData.records) ? pageData.records : []
+      this.diningPointNameMap = records.reduce((map: Record<string, string>, item: any) => {
+        if (item && item.id !== undefined && item.id !== null) {
+          map[String(item.id)] = item.name || '未命名助餐点'
+        }
+        return map
+      }, {})
+    } catch (error) {
+      this.diningPointNameMap = {}
+    }
+  }
+
+  private getDiningPointName(row: any) {
+    if (row && row.diningPointName) {
+      return row.diningPointName
+    }
+    if (row && row.diningPointId !== undefined && row.diningPointId !== null) {
+      return this.diningPointNameMap[String(row.diningPointId)] || '未知助餐点'
+    }
+    return '未设置'
   }
 
   //状态更改

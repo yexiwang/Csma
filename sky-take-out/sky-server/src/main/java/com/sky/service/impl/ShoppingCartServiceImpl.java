@@ -1,16 +1,21 @@
 package com.sky.service.impl;
 
+import com.sky.constant.MessageConstant;
 import com.sky.constant.StatusConstant;
 import com.sky.context.BaseContext;
 import com.sky.dto.ShoppingCartDTO;
+import com.sky.entity.DiningPoint;
 import com.sky.entity.Dish;
 import com.sky.entity.Elderly;
 import com.sky.entity.ShoppingCart;
 import com.sky.exception.ShoppingCartBusinessException;
+import com.sky.mapper.DiningPointMapper;
 import com.sky.mapper.DishMapper;
 import com.sky.mapper.ElderlyMapper;
 import com.sky.mapper.ShoppingCartMapper;
 import com.sky.service.ShoppingCartService;
+import com.sky.service.support.FamilyCheckoutCalculator;
+import com.sky.vo.ShoppingCartSummaryVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,12 +35,14 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
 
     @Autowired
     private ShoppingCartMapper shoppingCartMapper;
-
     @Autowired
     private DishMapper dishMapper;
-
     @Autowired
     private ElderlyMapper elderlyMapper;
+    @Autowired
+    private DiningPointMapper diningPointMapper;
+    @Autowired
+    private FamilyCheckoutCalculator familyCheckoutCalculator;
 
     @Override
     public void addShoppingCart(ShoppingCartDTO shoppingCartDTO) {
@@ -48,8 +55,9 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
         }
 
         Elderly elderly = requireAccessibleElderly(elderId, userId);
+        DiningPoint diningPoint = requireOrderableDiningPoint(elderly.getDiningPointId());
         Dish dish = requireOrderableDish(dishId);
-        validateDishDiningPoint(dish, elderly);
+        validateDishDiningPoint(dish, diningPoint.getId());
         ensureCartBinding(userId, elderId);
 
         ShoppingCart shoppingCart = new ShoppingCart();
@@ -75,10 +83,7 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
     @Override
     public List<ShoppingCart> showShoppingCart() {
         Long userId = BaseContext.getCurrentId();
-        ShoppingCart shoppingCart = ShoppingCart.builder()
-                .userId(userId)
-                .build();
-        List<ShoppingCart> cartList = shoppingCartMapper.list(shoppingCart);
+        List<ShoppingCart> cartList = shoppingCartMapper.list(ShoppingCart.builder().userId(userId).build());
         if (CollectionUtils.isEmpty(cartList)) {
             return Collections.emptyList();
         }
@@ -89,13 +94,35 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
             if (dish != null) {
                 cartItem.setDiningPointId(dish.getDiningPointId());
                 validCartList.add(cartItem);
-            } else {
-                log.warn("remove invalid shopping cart item, id={}, userId={}, dishId={}, setmealId={}",
-                        cartItem.getId(), userId, cartItem.getDishId(), cartItem.getSetmealId());
-                shoppingCartMapper.deleteById(cartItem.getId());
+                continue;
             }
+
+            log.warn("remove invalid shopping cart item, id={}, userId={}, dishId={}, setmealId={}",
+                    cartItem.getId(), userId, cartItem.getDishId(), cartItem.getSetmealId());
+            shoppingCartMapper.deleteById(cartItem.getId());
         }
         return validCartList;
+    }
+
+    @Override
+    public ShoppingCartSummaryVO getShoppingCartSummary(Long elderId, Integer tablewareStatus, Integer tablewareNumber) {
+        requireFamilyRole();
+        Long userId = BaseContext.getCurrentId();
+        Long targetElderId = requireTargetElderId(elderId);
+        Elderly elderly = requireAccessibleElderly(targetElderId, userId);
+        DiningPoint diningPoint = requireDiningPoint(elderly.getDiningPointId());
+
+        List<ShoppingCart> cartList = showShoppingCart();
+        validateCartBinding(cartList, targetElderId);
+        validateCartDiningPoint(cartList, diningPoint.getId());
+
+        return familyCheckoutCalculator.calculate(
+                targetElderId,
+                diningPoint.getId(),
+                cartList,
+                tablewareStatus,
+                tablewareNumber
+        );
     }
 
     @Override
@@ -132,6 +159,26 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
         shoppingCartMapper.updateNumberById(currentCart);
     }
 
+    @Override
+    public void removeShoppingCart(ShoppingCartDTO shoppingCartDTO) {
+        requireFamilyRole();
+        Long userId = BaseContext.getCurrentId();
+        Long elderId = requireTargetElderId(shoppingCartDTO.getElderId());
+        requireAccessibleElderly(elderId, userId);
+        ensureCartBinding(userId, elderId);
+
+        ShoppingCart shoppingCart = new ShoppingCart();
+        BeanUtils.copyProperties(shoppingCartDTO, shoppingCart);
+        shoppingCart.setUserId(userId);
+
+        List<ShoppingCart> cartList = shoppingCartMapper.list(shoppingCart);
+        if (CollectionUtils.isEmpty(cartList)) {
+            return;
+        }
+
+        shoppingCartMapper.deleteById(cartList.get(0).getId());
+    }
+
     private void requireFamilyRole() {
         String role = BaseContext.getCurrentRole();
         if (!ROLE_FAMILY.equals(role)) {
@@ -160,11 +207,28 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
         return elderly;
     }
 
+    private DiningPoint requireDiningPoint(Long diningPointId) {
+        DiningPoint diningPoint = diningPointMapper.getById(diningPointId);
+        if (diningPoint == null) {
+            throw new ShoppingCartBusinessException(MessageConstant.DINING_POINT_NOT_FOUND);
+        }
+        return diningPoint;
+    }
+
+    private DiningPoint requireOrderableDiningPoint(Long diningPointId) {
+        DiningPoint diningPoint = requireDiningPoint(diningPointId);
+        if (!StatusConstant.ENABLE.equals(diningPoint.getStatus())) {
+            throw new ShoppingCartBusinessException(MessageConstant.DINING_POINT_RESTING);
+        }
+        return diningPoint;
+    }
+
     private void ensureCartBinding(Long userId, Long elderId) {
-        ShoppingCart query = ShoppingCart.builder()
-                .userId(userId)
-                .build();
-        List<ShoppingCart> cartList = shoppingCartMapper.list(query);
+        List<ShoppingCart> cartList = shoppingCartMapper.list(ShoppingCart.builder().userId(userId).build());
+        validateCartBinding(cartList, elderId);
+    }
+
+    private void validateCartBinding(List<ShoppingCart> cartList, Long elderId) {
         if (CollectionUtils.isEmpty(cartList)) {
             return;
         }
@@ -179,8 +243,28 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
         }
     }
 
-    private void validateDishDiningPoint(Dish dish, Elderly elderly) {
-        if (!elderly.getDiningPointId().equals(dish.getDiningPointId())) {
+    private void validateCartDiningPoint(List<ShoppingCart> cartList, Long expectedDiningPointId) {
+        for (ShoppingCart cartItem : cartList) {
+            if (cartItem.getSetmealId() != null) {
+                throw new ShoppingCartBusinessException("当前版本暂不支持套餐点餐");
+            }
+            if (cartItem.getDishId() == null) {
+                throw new ShoppingCartBusinessException("购物车菜品数据异常，请刷新后重试");
+            }
+
+            Long diningPointId = cartItem.getDiningPointId();
+            if (diningPointId == null) {
+                Dish dish = requireOrderableDish(cartItem.getDishId());
+                diningPointId = dish.getDiningPointId();
+            }
+            if (!expectedDiningPointId.equals(diningPointId)) {
+                throw new ShoppingCartBusinessException("购物车菜品不属于当前老人对应助餐点");
+            }
+        }
+    }
+
+    private void validateDishDiningPoint(Dish dish, Long expectedDiningPointId) {
+        if (!expectedDiningPointId.equals(dish.getDiningPointId())) {
             throw new ShoppingCartBusinessException("所选菜品不属于当前老人对应助餐点");
         }
     }
@@ -196,6 +280,11 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
         if (dish.getDiningPointId() == null) {
             throw new ShoppingCartBusinessException("菜品未绑定助餐点，无法加入购物车");
         }
+
+        DiningPoint diningPoint = diningPointMapper.getById(dish.getDiningPointId());
+        if (diningPoint == null || !StatusConstant.ENABLE.equals(diningPoint.getStatus())) {
+            throw new ShoppingCartBusinessException(MessageConstant.DISH_DINING_POINT_UNAVAILABLE);
+        }
         return dish;
     }
 
@@ -205,9 +294,7 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
         }
 
         Dish dish = dishMapper.getById(cartItem.getDishId());
-        if (dish == null
-                || !StatusConstant.ENABLE.equals(dish.getStatus())
-                || dish.getDiningPointId() == null) {
+        if (dish == null || !StatusConstant.ENABLE.equals(dish.getStatus()) || dish.getDiningPointId() == null) {
             return null;
         }
         return dish;

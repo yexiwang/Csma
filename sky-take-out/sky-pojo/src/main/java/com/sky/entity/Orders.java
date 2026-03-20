@@ -86,6 +86,10 @@ public class Orders implements Serializable {
     private BigDecimal personalPay;
 
     //备注
+    private BigDecimal deliveryFee;
+
+    private BigDecimal tablewareFee;
+
     private String remark;
 
     //用户名

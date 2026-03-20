@@ -40,6 +40,26 @@
                       placeholder="请设置套餐价格"
             />
           </el-form-item>
+          <el-form-item label="所属助餐点:"
+                        prop="diningPointId"
+          >
+            <el-select v-model="ruleForm.diningPointId"
+                       placeholder="请选择所属助餐点"
+                       filterable
+                       @change="handleDiningPointChange"
+            >
+              <el-option v-for="item in availableDiningPointOptions"
+                         :key="item.id"
+                         :label="formatDiningPointOptionLabel(item)"
+                         :value="item.id"
+              />
+            </el-select>
+            <div v-if="showRestingDiningPointHint"
+                 class="field-hint"
+            >
+              当前助餐点处于休息状态，可保留历史归属；如需调整，请改到其他营业中的助餐点
+            </div>
+          </el-form-item>
         </div>
         <div>
           <el-form-item label="套餐菜品:"
@@ -191,6 +211,7 @@
                :check-list="checkList"
                :seach-key="seachKey"
                :dish-list="dishList"
+               :dining-point-id="resolvedDiningPointId"
                @checkList="getCheckList"
       />
       <span slot="footer"
@@ -212,6 +233,7 @@ import ImageUpload from '@/components/ImgUpload/index.vue'
 import AddDish from './components/AddDish.vue'
 import { querySetmealById, addSetmeal, editSetmeal } from '@/api/setMeal'
 import { getCategoryList } from '@/api/dish'
+import { DiningPointOption, getDiningPointPage } from '@/api/diningPoint'
 import { baseUrl } from '@/config.json'
 
 @Component({
@@ -232,6 +254,8 @@ export default class extends Vue {
   private dishTable: [] = []
   private dialogVisible: boolean = false
   private checkList: any[] = []
+  private allDiningPointOptions: DiningPointOption[] = []
+  private confirmedDiningPointId: number | null = null
   private ruleForm = {
     name: '',
     categoryId: '',
@@ -241,7 +265,8 @@ export default class extends Vue {
     description: '',
     dishList: [],
     status: true,
-    idType: ''
+    idType: '',
+    diningPointId: undefined as number | undefined
   }
 
   get rules() {
@@ -265,6 +290,11 @@ export default class extends Vue {
       idType: {
         required: true,
         message: '请选择套餐分类',
+        trigger: 'change'
+      },
+      diningPointId: {
+        required: true,
+        message: '请选择所属助餐点',
         trigger: 'change'
       },
       image: {
@@ -292,8 +322,38 @@ export default class extends Vue {
     }
   }
 
+  get availableDiningPointOptions() {
+    const activeOptions = this.allDiningPointOptions.filter(item => Number(item.status) === 1)
+    const currentId = this.ruleForm.diningPointId
+    if (!currentId) {
+      return activeOptions
+    }
+    const currentOption = this.allDiningPointOptions.find(item => Number(item.id) === Number(currentId))
+    if (currentOption && !activeOptions.some(item => Number(item.id) === Number(currentOption.id))) {
+      return [currentOption, ...activeOptions]
+    }
+    return activeOptions
+  }
+
+  get currentDiningPointOption() {
+    const currentId = this.ruleForm.diningPointId
+    if (!currentId) {
+      return null
+    }
+    return this.allDiningPointOptions.find(item => Number(item.id) === Number(currentId)) || null
+  }
+
+  get showRestingDiningPointHint() {
+    return Boolean(this.currentDiningPointOption && Number(this.currentDiningPointOption.status) !== 1)
+  }
+
+  get resolvedDiningPointId() {
+    return this.ruleForm.diningPointId ? Number(this.ruleForm.diningPointId) : null
+  }
+
   created() {
     this.getDishTypeList()
+    this.loadDiningPointOptions()
     this.actionType = this.$route.query.id ? 'edit' : 'add'
     if (this.actionType == 'edit') {
       this.init()
@@ -311,9 +371,55 @@ export default class extends Vue {
         this.checkList = res.data.data.setmealDishes
         this.dishTable = res.data.data.setmealDishes.reverse()
         this.ruleForm.idType = res.data.data.categoryId
+        this.confirmedDiningPointId = res.data.data.diningPointId ? Number(res.data.data.diningPointId) : null
       } else {
         this.$message.error(res.data.msg)
       }
+    })
+  }
+
+  private async loadDiningPointOptions() {
+    try {
+      const res: any = await getDiningPointPage({ page: 1, pageSize: 500 })
+      const pageData = res && res.data && res.data.data ? res.data.data : null
+      this.allDiningPointOptions = pageData && Array.isArray(pageData.records) ? pageData.records : []
+    } catch (error) {
+      this.allDiningPointOptions = []
+      this.$message.error('加载助餐点列表失败')
+    }
+  }
+
+  private formatDiningPointOptionLabel(item: DiningPointOption) {
+    const suffix = Number(item.status) === 1 ? '营业中' : '休息中'
+    return `${item.name}（${suffix}）`
+  }
+
+  private handleDiningPointChange(value: number) {
+    const nextDiningPointId = value ? Number(value) : null
+    const previousDiningPointId = this.confirmedDiningPointId
+    if (!nextDiningPointId) {
+      this.confirmedDiningPointId = null
+      return
+    }
+    if (!previousDiningPointId || previousDiningPointId === nextDiningPointId || this.dishTable.length === 0) {
+      this.confirmedDiningPointId = nextDiningPointId
+      return
+    }
+
+    this.$confirm('切换助餐点将清空已选菜品，是否继续？', '提示', {
+      confirmButtonText: '继续切换',
+      cancelButtonText: '取消',
+      type: 'warning'
+    }).then(() => {
+      this.confirmedDiningPointId = nextDiningPointId
+      this.dishTable = []
+      this.checkList = []
+      this.seachKey = ''
+      this.value = ''
+    }).catch(() => {
+      this.$nextTick(() => {
+        this.ruleForm.diningPointId = previousDiningPointId || undefined
+      })
     })
   }
   private seachHandle() {
@@ -359,6 +465,10 @@ export default class extends Vue {
 
   // 添加菜品
   openAddDish(st: string) {
+    if (!this.ruleForm.diningPointId) {
+      this.$message.warning('请先选择所属助餐点，再添加套餐菜品')
+      return
+    }
     this.seachKey = ''
     this.dialogVisible = true
   }
@@ -419,9 +529,11 @@ export default class extends Vue {
                     dishList: [],
                     status: true,
                     id: '',
-                    idType: ''
+                    idType: '',
+                    diningPointId: undefined as number | undefined
                   } as any
                   this.imageUrl = ''
+                  this.confirmedDiningPointId = null
                 }
               } else {
                 this.$message.error(res.data.msg)
@@ -515,6 +627,13 @@ export default class extends Vue {
     .el-form-item__content {
       width: 777px !important;
     }
+  }
+
+  .field-hint {
+    margin-top: 6px;
+    color: #e6a23c;
+    font-size: 12px;
+    line-height: 1.5;
   }
   .el-input__prefix {
     top: 2px;

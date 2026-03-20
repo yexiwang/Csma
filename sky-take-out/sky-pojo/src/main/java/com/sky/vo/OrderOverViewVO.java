@@ -8,25 +8,34 @@ import lombok.NoArgsConstructor;
 import java.io.Serializable;
 
 /**
- * 订单概览数据
+ * Order overview for today's dashboard.
+ * Legacy field names are kept for compatibility with the current frontend.
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class OrderOverViewVO implements Serializable {
-    //待接单数量
+
+    /**
+     * status 2 待调度
+     */
     private Integer waitingOrders;
 
-    //待派送数量
+    /**
+     * status 3 制作中
+     */
     private Integer deliveredOrders;
 
-    //已完成数量
+    /**
+     * status 6 已完成
+     */
     private Integer completedOrders;
 
-    //已取消数量
+    /**
+     * status 7 已取消
+     */
     private Integer cancelledOrders;
 
-    //全部订单
     private Integer allOrders;
 }

@@ -24,6 +24,8 @@ public class Setmeal implements Serializable {
     //分类id
     private Long categoryId;
 
+    private Long diningPointId;
+
     //套餐名称
     private String name;
 

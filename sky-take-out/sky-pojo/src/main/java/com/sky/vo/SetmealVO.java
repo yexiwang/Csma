@@ -26,6 +26,9 @@ public class SetmealVO implements Serializable {
     @ApiModelProperty("分类id")
     private Long categoryId;
 
+    @ApiModelProperty("所属助餐点ID")
+    private Long diningPointId;
+
     //套餐名称
     @ApiModelProperty("套餐名称")
     private String name;
@@ -53,6 +56,9 @@ public class SetmealVO implements Serializable {
     //分类名称
     @ApiModelProperty("分类名称")
     private String categoryName;
+
+    @ApiModelProperty("所属助餐点名称")
+    private String diningPointName;
 
     //套餐和菜品的关联关系
     @ApiModelProperty("套餐和菜品的关联关系")

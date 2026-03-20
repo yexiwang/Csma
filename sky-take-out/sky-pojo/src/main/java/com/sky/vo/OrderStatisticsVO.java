@@ -1,16 +1,28 @@
 package com.sky.vo;
 
 import lombok.Data;
+
 import java.io.Serializable;
 
+/**
+ * Three-card order statistics used by the current admin dashboard.
+ * Legacy field names are kept for compatibility.
+ */
 @Data
 public class OrderStatisticsVO implements Serializable {
-    //待接单数量
+
+    /**
+     * status 2 待调度
+     */
     private Integer toBeConfirmed;
 
-    //待派送数量
+    /**
+     * status 3 制作中
+     */
     private Integer confirmed;
 
-    //派送中数量
+    /**
+     * status 4 待取餐
+     */
     private Integer deliveryInProgress;
 }
