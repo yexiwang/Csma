@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.sky.mapper.VolunteerMapper">
+
+    <select id="pageQuery" resultType="com.sky.vo.VolunteerVO">
+        select id,
+               username,
+               name,
+               phone,
+               status,
+               create_time as createTime
+        from user
+        <where>
+            role = 'VOLUNTEER'
+            <if test="name != null and name != ''">
+                and name like concat('%', #{name}, '%')
+            </if>
+            <if test="phone != null and phone != ''">
+                and phone like concat('%', #{phone}, '%')
+            </if>
+            <if test="username != null and username != ''">
+                and username like concat('%', #{username}, '%')
+            </if>
+            <if test="status != null">
+                and status = #{status}
+            </if>
+        </where>
+        order by create_time desc
+    </select>
+
+    <select id="getByUsername" resultType="com.sky.entity.User">
+        select *
+        from user
+        where username = #{username}
+        limit 1
+    </select>
+
+    <select id="getVolunteerEntityById" resultType="com.sky.entity.User">
+        select *
+        from user
+        where id = #{id}
+          and role = 'VOLUNTEER'
+        limit 1
+    </select>
+
+    <select id="getVolunteerById" resultType="com.sky.vo.VolunteerVO">
+        select id,
+               username,
+               name,
+               phone,
+               status,
+               create_time as createTime
+        from user
+        where id = #{id}
+          and role = 'VOLUNTEER'
+        limit 1
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        insert into user(openid, username, password, role, status, name, phone, sex, id_number, avatar, create_time, update_time)
+        values(#{openid}, #{username}, #{password}, #{role}, #{status}, #{name}, #{phone}, #{sex}, #{idNumber}, #{avatar}, #{createTime}, #{updateTime})
+    </insert>
+
+    <update id="update" parameterType="com.sky.entity.User">
+        update user
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="phone != null">phone = #{phone},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </set>
+        where id = #{id}
+          and role = 'VOLUNTEER'
+    </update>
+
+    <select id="listActiveVolunteers" resultType="com.sky.vo.VolunteerVO">
+        select id,
+               name,
+               phone,
+               status,
+               (select count(1) from orders o where o.volunteer_id = user.id and o.status = 6) as totalOrders,
+               (select count(1) from orders o where o.volunteer_id = user.id and o.status in (3, 4, 5)) as currentTaskCount
+        from user
+        where role = 'VOLUNTEER'
+          and status = 1
+        order by create_time desc
+    </select>
+
+</mapper>

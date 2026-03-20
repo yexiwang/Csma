@@ -35,6 +35,7 @@ CREATE TABLE `elderly` (
   `age` int DEFAULT NULL COMMENT '年龄',
   `phone` varchar(11) DEFAULT NULL COMMENT '联系电话',
   `address` varchar(255) DEFAULT NULL COMMENT '详细居住地址',
+  `dining_point_id` bigint DEFAULT NULL COMMENT '默认助餐点ID',
   `grid_code` varchar(50) DEFAULT NULL COMMENT '所属网格/片区',
   `health_info` text DEFAULT NULL COMMENT '健康状况(慢性病/过敏源)',
   `special_needs` varchar(255) DEFAULT NULL COMMENT '特殊需求',
@@ -100,3 +101,8 @@ ALTER TABLE `dish` ADD COLUMN `dining_point_id` bigint DEFAULT NULL COMMENT '所
 ALTER TABLE `dish` ADD COLUMN `nutrition_tags` varchar(255) DEFAULT NULL COMMENT '营养标签(低糖,低盐等)' AFTER `description`;
 ALTER TABLE `dish` ADD COLUMN `suitability` varchar(255) DEFAULT NULL COMMENT '适宜人群' AFTER `nutrition_tags`;
 
+-- -----------------------------------------------------
+-- 8. 修改表：shopping_cart（购物车表）
+-- -----------------------------------------------------
+-- 增加 elder_id，实现购物车与当前服务老人的强绑定
+ALTER TABLE `shopping_cart` ADD COLUMN `elder_id` bigint DEFAULT NULL COMMENT '服务老人ID' AFTER `user_id`;

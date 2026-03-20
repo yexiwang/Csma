@@ -1,0 +1,63 @@
+import request from '@/utils/request'
+
+export interface ApiResult<T> {
+  code: number
+  msg?: string
+  data: T
+}
+
+export interface VolunteerTaskItem {
+  id: number
+  number: string
+  status: number
+  diningPointName?: string
+  consignee?: string
+  phone?: string
+  address?: string
+  orderTime?: string
+  remark?: string
+}
+
+export interface VolunteerTaskPage {
+  total: number
+  records: VolunteerTaskItem[]
+}
+
+export interface VolunteerTaskQuery {
+  page: number
+  pageSize: number
+  status?: number
+}
+
+function unwrapResult<T>(response: { data: ApiResult<T> }) {
+  const result = response.data
+  if (!result || result.code !== 1) {
+    throw new Error((result && result.msg) || 'Request failed')
+  }
+  return result.data
+}
+
+export const getVolunteerOrderPage = async (params: VolunteerTaskQuery): Promise<VolunteerTaskPage> => {
+  const response = await request({
+    url: '/user/volunteer/orders',
+    method: 'get',
+    params
+  })
+  return unwrapResult<VolunteerTaskPage>(response)
+}
+
+export const volunteerConfirmPickup = async (id: number): Promise<void> => {
+  const response = await request({
+    url: `/user/volunteer/pickup/${id}`,
+    method: 'put'
+  })
+  unwrapResult<void>(response)
+}
+
+export const volunteerConfirmComplete = async (id: number): Promise<void> => {
+  const response = await request({
+    url: `/user/volunteer/complete/${id}`,
+    method: 'put'
+  })
+  unwrapResult<void>(response)
+}

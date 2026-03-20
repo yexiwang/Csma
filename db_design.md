@@ -281,3 +281,63 @@
 - 登录 token claims
 - SQL 初始化脚本
 - 订单状态定义
+
+## 10. 2026-03 最新规则补充
+
+以下内容覆盖本文档中与当前实现不一致的旧描述。
+
+### 10.1 老人与助餐点绑定
+
+- `elderly.dining_point_id` 当前已经是正式业务字段
+- 其业务含义为：该老人默认由哪个助餐点提供助餐服务
+
+### 10.2 订单归属规则
+
+当前订单归属助餐点链路为：
+
+`elderId -> elderly.dining_point_id -> orders.dining_point_id`
+
+这意味着：
+
+- 订单归属助餐点不再由购物车菜品反推
+- 菜品的 `dining_point_id` 只负责一致性校验
+
+### 10.3 购物车规则
+
+- `shopping_cart` 当前已新增持久化字段 `elder_id`
+- 同一 `FAMILY` 用户同一时刻只允许存在一个老人的购物车
+- `GET /user/shoppingCart/list` 当前返回：
+  - 持久化字段 `elderId`
+  - 派生字段 `diningPointId`
+
+### 10.4 OPERATOR 数据范围
+
+- `orders.dining_point_id` 不仅决定订单归属，也决定 `OPERATOR` 的数据范围
+- 当角色为 `OPERATOR` 时，订单查询与状态操作都必须满足：
+  - `orders.dining_point_id = currentDiningPointId`
+
+### 10.5 管理员端老人档案字段落地
+
+当前仓库已经完成管理员端“老人档案 -> 所属助餐点”字段落地，数据库与接口约定如下：
+
+- 字段：`elderly.dining_point_id`
+- 推荐注释：`所属助餐点ID/默认助餐点ID`
+- 业务含义：表示该老人默认由哪个助餐点提供助餐服务
+- 推荐索引：`idx_elderly_dining_point_id`
+
+增量 SQL 已单独沉淀在仓库根目录：
+
+- `elderly_dining_point_admin_update.sql`
+
+管理员端当前读写方式：
+
+- 新增/编辑老人时，`dining_point_id` 由管理端表单显式提交
+- 分页/详情查询通过 `elderly LEFT JOIN dining_point` 直接返回 `diningPointName`
+- 管理端不再需要拿到 `diningPointId` 后自行循环查名称
+
+当前管理端校验约定：
+
+- `dining_point_id` 必填
+- 目标助餐点必须存在
+- 目标助餐点必须为启用状态
+- 若为历史遗留空值数据，可查询、可展示，但不能在保存时继续以空值提交

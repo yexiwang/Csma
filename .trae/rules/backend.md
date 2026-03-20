@@ -257,3 +257,35 @@
 - SQL 初始化脚本
 - 密码方案
 - 订单扩展字段
+
+## 13. 2026-03 最新后端规则补充
+
+以下内容覆盖文档中与当前实现不一致的旧描述。
+
+### 13.1 老人驱动订单归属
+
+- `elderly.dining_point_id` 是订单归属助餐点的业务来源
+- `orders.dining_point_id` 由老人继承
+- `dish.dining_point_id` 只做合法性校验
+- 不允许回退为“从购物车菜品反推订单归属助餐点”
+
+### 13.2 购物车规则
+
+- `shopping_cart.elder_id` 当前已经持久化
+- `ShoppingCartDTO`、`ShoppingCart`、购物车相关接口都应显式处理 `elderId`
+- 同一 `FAMILY` 用户同一时刻只允许存在一个老人的购物车
+
+### 13.3 `submitOrder` 规则
+
+- `elderId` 为必填
+- 提交订单时必须校验：
+  - 老人存在
+  - 老人属于当前 FAMILY
+  - 老人已绑定助餐点
+  - 购物车项属于当前老人
+  - 菜品属于当前老人助餐点
+
+### 13.4 OPERATOR 数据范围
+
+- `OPERATOR` 查询和操作订单时，必须按 `orders.dining_point_id = currentDiningPointId` 收口
+- 不允许只靠前端隐藏按钮控制 `OPERATOR` 越权

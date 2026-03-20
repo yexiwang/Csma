@@ -1,0 +1,694 @@
+<template>
+  <div class="order-history-container">
+    <div class="header">
+      <h1>订单历史</h1>
+    </div>
+
+    <div class="tabs">
+      <div
+        v-for="tab in tabs"
+        :key="String(tab.value)"
+        :class="['tab-item', { active: currentStatus === tab.value }]"
+        @click="changeStatus(tab.value)"
+      >
+        {{ tab.label }}
+      </div>
+    </div>
+
+    <div class="order-list" v-loading="loading">
+      <order-item
+        v-for="order in orders"
+        :key="order.id"
+        :order="order"
+        :class="['history-order-item', { 'is-created': isNewlyCreatedOrder(order.id) }]"
+        @click="viewOrderDetail(order.id)"
+      >
+        <template #actions>
+          <div class="action-buttons">
+            <el-button
+              v-if="order.status === ORDER_STATUS.PENDING_PAYMENT"
+              size="mini"
+              type="success"
+              :loading="payingOrderId === order.id"
+              @click.stop="handleContinuePayment(order)"
+            >
+              继续支付
+            </el-button>
+            <el-button
+              v-if="order.status === ORDER_STATUS.PENDING_PAYMENT || order.status === ORDER_STATUS.TO_BE_SCHEDULED"
+              size="mini"
+              type="danger"
+              @click.stop="handleCancel(order.id)"
+            >
+              取消订单
+            </el-button>
+            <el-button
+              size="mini"
+              type="primary"
+              :loading="repeatingOrderId === order.id"
+              @click.stop="handleRepetition(order.id)"
+            >
+              再来一单
+            </el-button>
+            <el-button
+              v-if="canReminder(order.status)"
+              size="mini"
+              type="warning"
+              @click.stop="handleReminder(order.id)"
+            >
+              催单
+            </el-button>
+          </div>
+        </template>
+      </order-item>
+
+      <el-empty
+        v-if="!loading && orders.length === 0"
+        description="暂无订单"
+      />
+    </div>
+
+    <el-pagination
+      v-if="total > 0"
+      class="pagination"
+      :page-size="pageSize"
+      :current-page="page"
+      :total="total"
+      layout="prev, pager, next"
+      @current-change="handlePageChange"
+    />
+
+    <el-dialog
+      title="订单详情"
+      :visible.sync="detailVisible"
+      width="760px"
+      @close="handleDetailClose"
+    >
+      <div v-loading="detailLoading" class="detail-dialog">
+        <div v-if="detailData" class="detail-body">
+          <div class="detail-summary">
+            <div class="detail-row">
+              <span class="label">订单号</span>
+              <span>{{ detailData.number || detailData.orderNumber || '--' }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">订单状态</span>
+              <el-tag :type="getOrderStatusTag(detailData.status)" size="mini">
+                {{ getOrderStatusText(detailData.status) }}
+              </el-tag>
+            </div>
+            <div class="detail-row">
+              <span class="label">联系人</span>
+              <span>{{ detailData.consignee || '--' }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">联系电话</span>
+              <span>{{ detailData.phone || '--' }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">老人</span>
+              <span>{{ getDisplayElderName(detailData) }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">助餐点</span>
+              <span>{{ getDisplayDiningPointName(detailData) }}</span>
+            </div>
+            <div class="detail-row full">
+              <span class="label">配送地址</span>
+              <span>{{ detailData.address || '--' }}</span>
+            </div>
+            <div class="detail-row full">
+              <span class="label">备注</span>
+              <span>{{ detailData.remark || '--' }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">下单时间</span>
+              <span>{{ formatTime(detailData.orderTime) }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">支付完成时间</span>
+              <span>{{ formatTime(detailData.checkoutTime) }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">预计送达时间</span>
+              <span>{{ formatTime(detailData.estimatedDeliveryTime || detailData.expectedTime) }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">实际送达/完成</span>
+              <span>{{ formatTime(detailData.deliveryTime) }}</span>
+            </div>
+          </div>
+
+          <div class="detail-section">
+            <div class="section-title">菜品明细</div>
+            <el-table
+              :data="detailItems"
+              border
+              size="mini"
+              empty-text="暂无菜品明细"
+            >
+              <el-table-column label="菜品" min-width="220">
+                <template slot-scope="{ row }">
+                  <div class="detail-dish-cell">
+                    <img
+                      v-if="row.dishImage || row.image"
+                      :src="row.dishImage || row.image"
+                      class="detail-dish-image"
+                    >
+                    <div class="detail-dish-copy">
+                      <div class="name">{{ row.dishName || row.name || '菜品' }}</div>
+                      <div v-if="row.dishFlavor" class="flavor">{{ row.dishFlavor }}</div>
+                    </div>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column label="单价" width="110">
+                <template slot-scope="{ row }">
+                  ￥{{ formatPrice(row.amount) }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="number" label="数量" width="90" />
+              <el-table-column label="小计" width="120">
+                <template slot-scope="{ row }">
+                  ￥{{ formatPrice(calculateDetailLineAmount(row)) }}
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+
+          <div class="detail-total">
+            <span>订单金额</span>
+            <strong>￥{{ formatPrice(detailData.amount) }}</strong>
+          </div>
+        </div>
+
+        <el-empty
+          v-else-if="!detailLoading"
+          description="订单详情为空"
+        />
+      </div>
+
+      <div slot="footer" class="detail-footer">
+        <el-button
+          v-if="detailData && detailData.status === ORDER_STATUS.PENDING_PAYMENT"
+          type="success"
+          :loading="payingOrderId === detailData.id"
+          @click="handleContinuePayment(detailData)"
+        >
+          继续支付
+        </el-button>
+        <el-button
+          v-if="detailData && (detailData.status === ORDER_STATUS.PENDING_PAYMENT || detailData.status === ORDER_STATUS.TO_BE_SCHEDULED)"
+          type="danger"
+          @click="handleCancel(detailData.id)"
+        >
+          取消订单
+        </el-button>
+        <el-button
+          v-if="detailData"
+          type="primary"
+          :loading="repeatingOrderId === detailData.id"
+          @click="handleRepetition(detailData.id)"
+        >
+          再来一单
+        </el-button>
+        <el-button
+          v-if="detailData && canReminder(detailData.status)"
+          type="warning"
+          @click="handleReminder(detailData.id)"
+        >
+          催单
+        </el-button>
+        <el-button @click="detailVisible = false">
+          关闭
+        </el-button>
+      </div>
+    </el-dialog>
+  </div>
+</template>
+
+<script lang="ts">
+import { Component, Vue } from 'vue-property-decorator'
+import {
+  cancelOrder,
+  getHistoryOrders,
+  getOrderDetail,
+  Order,
+  OrderDetail,
+  paymentOrder,
+  repetitionOrder,
+  reminderOrder
+} from '@/api/order'
+import { ORDER_STATUS, getOrderStatusTag, getOrderStatusText } from '@/constants/order'
+import OrderItem from '@/components/order/orderItem.vue'
+
+interface TabOption {
+  label: string
+  value: number | null
+}
+
+@Component({
+  name: 'OrderHistory',
+  components: {
+    OrderItem
+  }
+})
+export default class OrderHistory extends Vue {
+  private readonly ORDER_STATUS = ORDER_STATUS
+  private tabs: TabOption[] = [
+    { label: '全部', value: null },
+    { label: '待支付', value: ORDER_STATUS.PENDING_PAYMENT },
+    { label: '待调度', value: ORDER_STATUS.TO_BE_SCHEDULED },
+    { label: '制作中', value: ORDER_STATUS.PREPARING },
+    { label: '待取餐', value: ORDER_STATUS.MEAL_READY },
+    { label: '配送中', value: ORDER_STATUS.DELIVERY_IN_PROGRESS },
+    { label: '已完成', value: ORDER_STATUS.COMPLETED },
+    { label: '已取消', value: ORDER_STATUS.CANCELLED }
+  ]
+
+  private currentStatus: number | null = null
+  private orders: Order[] = []
+  private loading = false
+  private page = 1
+  private pageSize = 10
+  private total = 0
+  private payingOrderId: number | null = null
+  private repeatingOrderId: number | null = null
+  private highlightOrderId: number | null = null
+  private createdOrderId: number | null = null
+  private detailVisible = false
+  private detailLoading = false
+  private detailData: Order | null = null
+
+  created() {
+    this.createdOrderId = this.parseOrderId(this.$route.query.createdOrderId)
+    if (this.createdOrderId) {
+      this.currentStatus = null
+      this.page = 1
+    }
+    this.loadOrders()
+  }
+
+  get detailItems(): OrderDetail[] {
+    if (!this.detailData) {
+      return []
+    }
+    return this.detailData.orderDetailList || this.detailData.orderDetails || []
+  }
+
+  private parseOrderId(value: any) {
+    if (Array.isArray(value)) {
+      value = value[0]
+    }
+
+    const parsed = Number(value)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+  }
+
+  private getResponseData(res: any) {
+    return res && res.data && res.data.data !== undefined ? res.data.data : res.data
+  }
+
+  private getOrderStatusText(status: number) {
+    return getOrderStatusText(status)
+  }
+
+  private getOrderStatusTag(status: number) {
+    return getOrderStatusTag(status)
+  }
+
+  private isNewlyCreatedOrder(orderId?: number) {
+    return Number(orderId) === this.highlightOrderId
+  }
+
+  private calculateDetailLineAmount(detail: OrderDetail) {
+    return Number(detail.amount || 0) * Number(detail.number || 0)
+  }
+
+  private formatPrice(price?: number) {
+    return Number(price || 0).toFixed(2)
+  }
+
+  private getDisplayElderName(order: Order) {
+    return order.elderName || '历史订单未记录服务老人'
+  }
+
+  private getDisplayDiningPointName(order: Order) {
+    return order.diningPointName || '历史订单未记录助餐点'
+  }
+
+  private formatTime(time?: string) {
+    if (!time) {
+      return '--'
+    }
+
+    const date = new Date(time)
+    if (Number.isNaN(date.getTime())) {
+      return time
+    }
+
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hour = String(date.getHours()).padStart(2, '0')
+    const minute = String(date.getMinutes()).padStart(2, '0')
+    return `${year}-${month}-${day} ${hour}:${minute}`
+  }
+
+  private clearCreatedOrderQuery() {
+    if (!this.$route.query.createdOrderId) {
+      return
+    }
+
+    const nextQuery: Record<string, any> = { ...this.$route.query }
+    delete nextQuery.createdOrderId
+
+    this.$router.replace({
+      path: this.$route.path,
+      query: nextQuery
+    }).catch(() => undefined)
+  }
+
+  private syncCreatedOrderHighlight() {
+    if (!this.createdOrderId) {
+      return
+    }
+
+    const matchedOrder = this.orders.find((item) => Number(item.id) === this.createdOrderId)
+    this.highlightOrderId = matchedOrder ? Number(matchedOrder.id) : null
+    this.clearCreatedOrderQuery()
+    this.createdOrderId = null
+  }
+
+  private async loadOrders() {
+    this.loading = true
+    try {
+      const params: { page: number; pageSize: number; status?: number } = {
+        page: this.page,
+        pageSize: this.pageSize
+      }
+
+      if (this.currentStatus !== null) {
+        params.status = this.currentStatus
+      }
+
+      const res = await getHistoryOrders(params)
+      const pageData = this.getResponseData(res) || {}
+      this.orders = Array.isArray(pageData.records) ? pageData.records : []
+      this.total = Number(pageData.total || 0)
+      this.syncCreatedOrderHighlight()
+    } catch (error) {
+      this.orders = []
+      this.total = 0
+      this.$message.error(this.resolveErrorMessage(error, '订单历史加载失败，请重试'))
+      this.clearCreatedOrderQuery()
+      this.createdOrderId = null
+    } finally {
+      this.loading = false
+    }
+  }
+
+  private changeStatus(status: number | null) {
+    this.currentStatus = status
+    this.page = 1
+    this.loadOrders()
+  }
+
+  private handlePageChange(page: number) {
+    this.page = page
+    this.loadOrders()
+  }
+
+  private async viewOrderDetail(orderId: number) {
+    this.detailVisible = true
+    this.detailLoading = true
+    this.detailData = null
+
+    try {
+      const res = await getOrderDetail(orderId)
+      const data = this.getResponseData(res)
+      this.detailData = data || null
+    } catch (error) {
+      this.detailVisible = false
+      this.$message.error(this.resolveErrorMessage(error, '订单详情加载失败，请重试'))
+    } finally {
+      this.detailLoading = false
+    }
+  }
+
+  private handleDetailClose() {
+    this.detailLoading = false
+    this.detailData = null
+  }
+
+  private async refreshDetailIfNeeded(orderId: number) {
+    if (!this.detailVisible || !this.detailData || Number(this.detailData.id) !== Number(orderId)) {
+      return
+    }
+
+    this.detailLoading = true
+    try {
+      const res = await getOrderDetail(orderId)
+      const data = this.getResponseData(res)
+      this.detailData = data || null
+    } catch (_error) {
+      this.detailVisible = false
+      this.detailData = null
+    } finally {
+      this.detailLoading = false
+    }
+  }
+
+  private async handleContinuePayment(order: Order) {
+    const orderNumber = order.number || order.orderNumber
+    if (!orderNumber) {
+      this.$message.warning('当前订单缺少订单号，无法继续支付')
+      return
+    }
+
+    this.payingOrderId = Number(order.id)
+    try {
+      await paymentOrder({
+        orderNumber,
+        payMethod: 1
+      })
+      this.$message.success('支付确认成功，订单已进入待调度')
+      await this.loadOrders()
+      await this.refreshDetailIfNeeded(Number(order.id))
+    } catch (error) {
+      this.$message.error(this.resolveErrorMessage(error, '继续支付失败，请重试'))
+    } finally {
+      this.payingOrderId = null
+    }
+  }
+
+  private async handleCancel(orderId: number) {
+    try {
+      await this.$confirm('确认取消这笔订单吗？', '提示', { type: 'warning' })
+      await cancelOrder(orderId)
+      this.$message.success('订单已取消')
+      await this.loadOrders()
+      await this.refreshDetailIfNeeded(orderId)
+    } catch (error) {
+      if (error !== 'cancel' && error !== 'close') {
+        this.$message.error(this.resolveErrorMessage(error, '取消订单失败，请重试'))
+      }
+    }
+  }
+
+  private async handleRepetition(orderId: number) {
+    if (this.repeatingOrderId) {
+      return
+    }
+
+    this.repeatingOrderId = orderId
+    try {
+      await repetitionOrder(orderId)
+      await this.$router.push({
+        path: '/family-order',
+        query: {
+          resumeCheckout: '1',
+          repeatedOrderId: String(orderId)
+        }
+      })
+    } catch (error) {
+      this.$message.error(this.resolveErrorMessage(error, '再来一单失败，请重试'))
+    } finally {
+      this.repeatingOrderId = null
+    }
+  }
+
+  private async handleReminder(orderId: number) {
+    try {
+      await reminderOrder(orderId)
+      this.$message.success('催单成功')
+    } catch (error) {
+      this.$message.error(this.resolveErrorMessage(error, '催单失败，请重试'))
+    }
+  }
+
+  private canReminder(status: number) {
+    const remindableStatusList: number[] = [
+      ORDER_STATUS.TO_BE_SCHEDULED,
+      ORDER_STATUS.PREPARING,
+      ORDER_STATUS.MEAL_READY,
+      ORDER_STATUS.DELIVERY_IN_PROGRESS
+    ]
+    return remindableStatusList.includes(status)
+  }
+
+  private resolveErrorMessage(error: any, fallbackMessage: string) {
+    const responseMessage = error && error.response && error.response.data && error.response.data.msg
+    const directMessage = error && error.message
+    return responseMessage || directMessage || fallbackMessage
+  }
+}
+</script>
+
+<style lang="scss" scoped>
+.order-history-container {
+  min-height: 100vh;
+  background: #f5f7fa;
+
+  .header {
+    background: linear-gradient(135deg, #f8b500, #ffd86f);
+    padding: 24px;
+    text-align: center;
+    color: #3c2f00;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 10px;
+    padding: 12px;
+    background: #fff;
+    overflow-x: auto;
+  }
+
+  .tab-item {
+    padding: 10px 18px;
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+    color: #606266;
+
+    &.active {
+      background: #f8b500;
+      color: #fff;
+      font-weight: 600;
+    }
+  }
+
+  .order-list {
+    padding: 12px;
+  }
+
+  .action-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .pagination {
+    padding: 0 0 24px;
+    text-align: center;
+  }
+}
+
+.history-order-item.is-created {
+  box-shadow: 0 0 0 2px rgba(248, 181, 0, 0.55), 0 12px 24px rgba(248, 181, 0, 0.18);
+}
+
+.detail-dialog {
+  min-height: 220px;
+}
+
+.detail-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+  padding: 16px;
+  border-radius: 12px;
+  background: #fff9e8;
+}
+
+.detail-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: #303133;
+  line-height: 1.6;
+
+  &.full {
+    grid-column: 1 / -1;
+  }
+
+  .label {
+    flex-shrink: 0;
+    color: #909399;
+  }
+}
+
+.detail-section {
+  margin-top: 18px;
+}
+
+.section-title {
+  margin-bottom: 12px;
+  color: #303133;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.detail-dish-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.detail-dish-image {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.detail-dish-copy {
+  .name {
+    color: #303133;
+  }
+
+  .flavor {
+    margin-top: 4px;
+    color: #909399;
+    font-size: 12px;
+  }
+}
+
+.detail-total {
+  margin-top: 18px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  color: #303133;
+
+  strong {
+    font-size: 18px;
+    color: #f56c6c;
+  }
+}
+
+.detail-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .detail-summary {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

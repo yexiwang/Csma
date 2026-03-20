@@ -1,0 +1,4 @@
+dist/*.js
+src/assets
+src/styles/icon/iconfont.js
+tests/unit/coverage
