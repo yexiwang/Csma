@@ -112,15 +112,35 @@
       @close="handleDialogClose"
     >
       <el-form ref="familyProfileForm" :model="form" :rules="rules" label-width="120px">
+        <el-form-item v-if="dialogMode === 'add'" label="建档方式" prop="accountMode">
+          <el-radio-group v-model="form.accountMode" @change="handleAccountModeChange">
+            <el-radio label="create">
+              新建FAMILY账号并建档
+            </el-radio>
+            <el-radio label="existing">
+              绑定已有FAMILY账号
+            </el-radio>
+          </el-radio-group>
+        </el-form-item>
+
+        <el-alert
+          v-if="dialogMode === 'add' && isCreateAccountMode"
+          class="modeTip"
+          title="将同步创建一个 role=FAMILY 的登录账号，无需先准备可绑定账号。"
+          type="info"
+          :closable="false"
+          show-icon
+        />
+
         <el-form-item label="家属姓名" prop="name">
           <el-input v-model="form.name" placeholder="请输入家属姓名" maxlength="50" />
         </el-form-item>
 
         <el-form-item label="手机号" prop="phone">
-          <el-input v-model="form.phone" placeholder="请输入手机号" maxlength="20" />
+          <el-input v-model="form.phone" placeholder="请输入手机号" maxlength="11" />
         </el-form-item>
 
-        <el-form-item label="绑定FAMILY账号" prop="userId">
+        <el-form-item v-if="showExistingUserSelect" label="绑定FAMILY账号" prop="userId">
           <el-select
             v-model="form.userId"
             filterable
@@ -136,6 +156,26 @@
             />
           </el-select>
         </el-form-item>
+
+        <template v-if="dialogMode === 'add' && isCreateAccountMode">
+          <el-form-item label="FAMILY账号" prop="username">
+            <el-input
+              v-model="form.username"
+              placeholder="请输入新建登录账号"
+              maxlength="32"
+            />
+          </el-form-item>
+
+          <el-form-item label="初始密码" prop="password">
+            <el-input
+              v-model="form.password"
+              type="password"
+              show-password
+              placeholder="请输入初始密码"
+              maxlength="32"
+            />
+          </el-form-item>
+        </template>
 
         <el-form-item label="备注" prop="remark">
           <el-input
@@ -187,10 +227,15 @@ import {
 } from '@/api/familyProfile'
 
 type DialogMode = 'add' | 'edit'
+type AccountMode = 'existing' | 'create'
 
 interface PageResponse<T> {
   total?: number
   records?: T[]
+}
+
+interface FamilyProfileDialogForm extends FamilyProfileFormData {
+  accountMode: AccountMode
 }
 
 @Component({
@@ -212,7 +257,43 @@ export default class FamilyProfileManage extends Vue {
     status: undefined as number | undefined
   }
 
-  private form: FamilyProfileFormData = this.createDefaultForm()
+  private form: FamilyProfileDialogForm = this.createDefaultForm('create')
+
+  private validateUserId = (_rule: any, value: number | undefined, callback: Function) => {
+    if (!this.showExistingUserSelect) {
+      callback()
+      return
+    }
+    if (!value) {
+      callback(new Error('请选择绑定的FAMILY账号'))
+      return
+    }
+    callback()
+  }
+
+  private validateUsername = (_rule: any, value: string | undefined, callback: Function) => {
+    if (!(this.dialogMode === 'add' && this.isCreateAccountMode)) {
+      callback()
+      return
+    }
+    if (!value || !value.trim()) {
+      callback(new Error('请输入新建FAMILY账号'))
+      return
+    }
+    callback()
+  }
+
+  private validatePassword = (_rule: any, value: string | undefined, callback: Function) => {
+    if (!(this.dialogMode === 'add' && this.isCreateAccountMode)) {
+      callback()
+      return
+    }
+    if (!value || !value.trim()) {
+      callback(new Error('请输入初始密码'))
+      return
+    }
+    callback()
+  }
 
   created() {
     this.getList()
@@ -221,19 +302,33 @@ export default class FamilyProfileManage extends Vue {
   get rules() {
     return {
       name: [{ required: true, message: '家属姓名不能为空', trigger: 'blur' }],
-      userId: [{ required: true, message: '请选择绑定的FAMILY账号', trigger: 'change' }],
+      userId: [{ validator: this.validateUserId, trigger: 'change' }],
+      username: [{ validator: this.validateUsername, trigger: 'blur' }],
+      password: [{ validator: this.validatePassword, trigger: 'blur' }],
       status: [{ required: true, message: '请选择状态', trigger: 'change' }]
     }
   }
 
-  private createDefaultForm(): FamilyProfileFormData {
+  get isCreateAccountMode() {
+    return this.form.accountMode === 'create'
+  }
+
+  get showExistingUserSelect() {
+    return this.dialogMode === 'edit' || !this.isCreateAccountMode
+  }
+
+  private createDefaultForm(accountMode: AccountMode): FamilyProfileDialogForm {
     return {
       id: undefined,
       userId: undefined,
+      createUser: false,
+      username: '',
+      password: '',
       name: '',
       phone: '',
       remark: '',
-      status: 1
+      status: 1,
+      accountMode
     }
   }
 
@@ -313,7 +408,7 @@ export default class FamilyProfileManage extends Vue {
 
   private async handleAdd() {
     this.dialogMode = 'add'
-    this.form = this.createDefaultForm()
+    this.form = this.createDefaultForm('create')
     try {
       await this.loadFamilyUsers()
       this.dialogVisible = true
@@ -324,17 +419,21 @@ export default class FamilyProfileManage extends Vue {
 
   private async handleEdit(row: FamilyProfileItem) {
     this.dialogMode = 'edit'
-    this.form = this.createDefaultForm()
+    this.form = this.createDefaultForm('existing')
     try {
       await this.loadFamilyUsers()
       const detail = this.unwrapData<FamilyProfileItem>(await getFamilyProfileById(row.id), '获取家属档案详情失败')
       this.form = {
         id: detail.id,
         userId: detail.userId,
+        createUser: false,
+        username: '',
+        password: '',
         name: detail.name || '',
         phone: detail.phone || '',
         remark: detail.remark || '',
-        status: typeof detail.status === 'number' ? detail.status : 1
+        status: typeof detail.status === 'number' ? detail.status : 1,
+        accountMode: 'existing'
       }
       this.dialogVisible = true
     } catch (error) {
@@ -380,6 +479,27 @@ export default class FamilyProfileManage extends Vue {
     }
   }
 
+  private async handleAccountModeChange(mode: AccountMode) {
+    if (mode === 'create') {
+      this.form.userId = undefined
+    } else {
+      this.form.username = ''
+      this.form.password = ''
+      if (!this.familyUserOptions.length) {
+        try {
+          await this.loadFamilyUsers()
+        } catch (error) {
+          this.$message.error(this.resolveErrorMessage(error, '获取FAMILY用户列表失败'))
+        }
+      }
+    }
+
+    const formRef = this.$refs.familyProfileForm as any
+    if (formRef) {
+      formRef.clearValidate(['userId', 'username', 'password'])
+    }
+  }
+
   private async submitForm() {
     const formRef = this.$refs.familyProfileForm as any
     formRef.validate(async (valid: boolean) => {
@@ -388,9 +508,13 @@ export default class FamilyProfileManage extends Vue {
       }
       this.submitting = true
       try {
+        const createUser = this.dialogMode === 'add' && this.isCreateAccountMode
         const payload: FamilyProfileFormData = {
           id: this.form.id,
-          userId: this.form.userId,
+          userId: createUser ? undefined : this.form.userId,
+          createUser,
+          username: createUser ? this.form.username.trim() : undefined,
+          password: createUser ? this.form.password.trim() : undefined,
           name: this.form.name.trim(),
           phone: this.form.phone ? this.form.phone.trim() : '',
           remark: this.form.remark ? this.form.remark.trim() : '',
@@ -398,7 +522,7 @@ export default class FamilyProfileManage extends Vue {
         }
         if (this.dialogMode === 'add') {
           this.unwrapData(await addFamilyProfile(payload), '新增家属档案失败')
-          this.$message.success('新增家属档案成功')
+          this.$message.success(createUser ? '已创建FAMILY账号并完成建档' : '新增家属档案成功')
         } else {
           this.unwrapData(await updateFamilyProfile(payload), '编辑家属档案失败')
           this.$message.success('编辑家属档案成功')
@@ -417,8 +541,9 @@ export default class FamilyProfileManage extends Vue {
     const formRef = this.$refs.familyProfileForm as any
     if (formRef) {
       formRef.resetFields()
+      formRef.clearValidate()
     }
-    this.form = this.createDefaultForm()
+    this.form = this.createDefaultForm('create')
     this.dialogMode = 'add'
   }
 
@@ -430,7 +555,7 @@ export default class FamilyProfileManage extends Vue {
   }
 
   private formatFamilyUserLabel(item: FamilyUserOption) {
-    const name = item.name || item.boundFamilyProfileName || `用户${item.userId}`
+    const name = item.boundFamilyProfileName || item.name || `用户${item.userId}`
     const phone = item.phone || '-'
     const username = item.username || `ID:${item.userId}`
     const suffix = this.isFamilyUserDisabled(item) ? '（已绑定）' : ''
@@ -477,6 +602,10 @@ export default class FamilyProfileManage extends Vue {
       text-align: center;
       margin-top: 20px;
     }
+  }
+
+  .modeTip {
+    margin-bottom: 18px;
   }
 }
 </style>

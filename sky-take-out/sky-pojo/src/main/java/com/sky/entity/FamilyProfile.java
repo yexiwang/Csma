@@ -20,10 +20,6 @@ public class FamilyProfile implements Serializable {
 
     private Long userId;
 
-    private String name;
-
-    private String phone;
-
     private String remark;
 
     private Integer status;

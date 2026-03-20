@@ -16,6 +16,9 @@ export interface FamilyProfileItem {
 export interface FamilyProfileFormData {
   id?: number
   userId?: number
+  createUser?: boolean
+  username?: string
+  password?: string
   name: string
   phone?: string
   remark?: string

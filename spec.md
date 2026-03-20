@@ -101,6 +101,7 @@
   - `/order`
   - `/diningPoint`
   - `/elderly`
+  - `/familyProfile`
   - `/setmeal`
   - `/dish`
   - `/category`
@@ -129,6 +130,7 @@
 
 - 助餐点管理 `DiningPoint`
 - 老人档案管理 `Elderly`
+- 家属档案管理 `FamilyProfile`
 - 员工管理 `Employee`
 - 用户管理 `User`
 - 订单主表与订单明细
@@ -317,3 +319,49 @@
 
 - 只补齐管理员端老人档案的数据维护入口
 - 不改 `FAMILY` 点餐主流程、购物车、结算页和订单提交主逻辑
+
+### 10.7 管理员端家属档案与 FAMILY 主数据
+
+本轮已补齐管理员端“家属档案管理”前后端闭环，并完成家属主数据收口。
+
+当前管理员端已落地的入口：
+
+- 菜单路由：`/familyProfile`
+- 页面能力：分页、筛选、新增、编辑、启停、删除
+- 新增家属档案时支持两种方式：
+  - 绑定已有 `FAMILY` 账号
+  - 同步创建新的 `FAMILY` 账号并建档
+
+当前管理员端已落地的接口约定：
+
+- `GET /admin/familyProfile/page`
+- `GET /admin/familyProfile/{id}`
+- `POST /admin/familyProfile`
+- `PUT /admin/familyProfile`
+- `POST /admin/familyProfile/status/{status}?id=`
+- `DELETE /admin/familyProfile?id=`
+- `GET /admin/familyProfile/options`
+- `GET /admin/familyProfile/familyUsers`
+
+当前主数据规则：
+
+- `family_profile` 只保留档案层字段：
+  - `user_id`
+  - `remark`
+  - `status`
+  - `create_time / update_time`
+  - `create_user / update_user`
+  - `is_deleted`
+- 家属姓名统一来源于 `user.name`
+- 家属联系电话统一来源于 `user.phone`
+- `family_profile` 表中原有的 `name`、`phone` 字段已经删除
+
+与老人档案的关系规则：
+
+- 老人底层仍通过 `elderly.user_id` 绑定 `FAMILY` 用户
+- 老人新增/编辑时必须显式选择关联家属
+- 老人列表与详情当前已返回：
+  - `familyName`
+  - `familyUsername`
+  - `familyPhone`
+  - `familyProfileId`

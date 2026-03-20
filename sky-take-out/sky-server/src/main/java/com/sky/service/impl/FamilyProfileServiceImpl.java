@@ -17,11 +17,13 @@ import com.sky.service.FamilyProfileService;
 import com.sky.vo.FamilyProfileOptionVO;
 import com.sky.vo.FamilyProfileVO;
 import com.sky.vo.FamilyUserOptionVO;
-import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.DigestUtils;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -58,26 +60,32 @@ public class FamilyProfileServiceImpl implements FamilyProfileService {
     }
 
     @Override
+    @Transactional
     public void save(FamilyProfileDTO familyProfileDTO) {
-        validateName(familyProfileDTO.getName());
-        Long userId = requireUserId(familyProfileDTO.getUserId());
-        requireFamilyUser(userId);
-        ensureUserIdAvailable(userId, null);
+        String familyName = normalizeRequiredField(familyProfileDTO.getName(), "家属姓名不能为空");
+        Long userId = resolveUserIdForSave(familyProfileDTO);
+        LocalDateTime now = LocalDateTime.now();
 
-        FamilyProfile familyProfile = new FamilyProfile();
-        BeanUtils.copyProperties(familyProfileDTO, familyProfile);
-        familyProfile.setName(familyProfileDTO.getName().trim());
-        familyProfile.setPhone(normalizeOptionalField(familyProfileDTO.getPhone()));
-        familyProfile.setRemark(normalizeOptionalField(familyProfileDTO.getRemark()));
-        familyProfile.setStatus(normalizeStatus(familyProfileDTO.getStatus(), StatusConstant.ENABLE));
-        familyProfile.setIsDeleted(0);
+        FamilyProfile familyProfile = FamilyProfile.builder()
+                .userId(userId)
+                .remark(normalizeOptionalField(familyProfileDTO.getRemark()))
+                .status(normalizeStatus(familyProfileDTO.getStatus(), StatusConstant.ENABLE))
+                .createTime(now)
+                .updateTime(now)
+                .isDeleted(0)
+                .build();
         familyProfileMapper.insert(familyProfile);
+
+        syncUserProfile(userId, familyName, normalizePhoneForUser(familyProfileDTO.getPhone()));
     }
 
     @Override
     public void update(FamilyProfileDTO familyProfileDTO) {
         if (familyProfileDTO.getId() == null) {
             throw new BaseException("家属档案ID不能为空");
+        }
+        if (Boolean.TRUE.equals(familyProfileDTO.getCreateUser())) {
+            throw new BaseException("编辑家属档案时不支持同步创建新的FAMILY账号");
         }
         FamilyProfile current = requireProfile(familyProfileDTO.getId());
 
@@ -89,12 +97,12 @@ public class FamilyProfileServiceImpl implements FamilyProfileService {
         ensureUserIdAvailable(targetUserId, current.getId());
         familyProfile.setUserId(targetUserId);
 
+        String targetName = null;
         if (familyProfileDTO.getName() != null) {
-            validateName(familyProfileDTO.getName());
-            familyProfile.setName(familyProfileDTO.getName().trim());
+            targetName = normalizeRequiredField(familyProfileDTO.getName(), "家属姓名不能为空");
         }
         if (familyProfileDTO.getPhone() != null) {
-            familyProfile.setPhone(normalizeOptionalField(familyProfileDTO.getPhone()));
+            normalizePhoneForUser(familyProfileDTO.getPhone());
         }
         if (familyProfileDTO.getRemark() != null) {
             familyProfile.setRemark(normalizeOptionalField(familyProfileDTO.getRemark()));
@@ -102,8 +110,15 @@ public class FamilyProfileServiceImpl implements FamilyProfileService {
         if (familyProfileDTO.getStatus() != null) {
             familyProfile.setStatus(normalizeStatus(familyProfileDTO.getStatus(), current.getStatus()));
         }
+        familyProfile.setUpdateTime(LocalDateTime.now());
 
         familyProfileMapper.update(familyProfile);
+        if (targetName != null || familyProfileDTO.getPhone() != null) {
+            User currentUser = requireFamilyUser(targetUserId);
+            syncUserProfile(targetUserId,
+                    targetName != null ? targetName : currentUser.getName(),
+                    familyProfileDTO.getPhone() != null ? normalizePhoneForUser(familyProfileDTO.getPhone()) : currentUser.getPhone());
+        }
     }
 
     @Override
@@ -115,6 +130,7 @@ public class FamilyProfileServiceImpl implements FamilyProfileService {
         FamilyProfile familyProfile = FamilyProfile.builder()
                 .id(id)
                 .status(normalizeStatus(status, current.getStatus()))
+                .updateTime(LocalDateTime.now())
                 .build();
         familyProfileMapper.update(familyProfile);
     }
@@ -132,6 +148,7 @@ public class FamilyProfileServiceImpl implements FamilyProfileService {
         familyProfileMapper.update(FamilyProfile.builder()
                 .id(id)
                 .isDeleted(1)
+                .updateTime(LocalDateTime.now())
                 .build());
     }
 
@@ -152,10 +169,15 @@ public class FamilyProfileServiceImpl implements FamilyProfileService {
         return userId;
     }
 
-    private void validateName(String name) {
-        if (!StringUtils.hasText(name)) {
-            throw new BaseException("家属姓名不能为空");
+    private Long resolveUserIdForSave(FamilyProfileDTO familyProfileDTO) {
+        if (Boolean.TRUE.equals(familyProfileDTO.getCreateUser())) {
+            return createFamilyUser(familyProfileDTO);
         }
+
+        Long userId = requireUserId(familyProfileDTO.getUserId());
+        requireFamilyUser(userId);
+        ensureUserIdAvailable(userId, null);
+        return userId;
     }
 
     private User requireFamilyUser(Long userId) {
@@ -192,10 +214,61 @@ public class FamilyProfileServiceImpl implements FamilyProfileService {
         return targetStatus;
     }
 
+    private Long createFamilyUser(FamilyProfileDTO familyProfileDTO) {
+        String username = normalizeRequiredField(familyProfileDTO.getUsername(), "新建FAMILY账号时用户名不能为空");
+        String password = normalizeRequiredField(familyProfileDTO.getPassword(), "新建FAMILY账号时密码不能为空");
+
+        if (userMapper.getByUsername(username) != null) {
+            throw new BaseException("用户名已存在");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        User user = User.builder()
+                .username(username)
+                .password(DigestUtils.md5DigestAsHex(password.getBytes()))
+                .role(ROLE_FAMILY)
+                .status(normalizeStatus(familyProfileDTO.getStatus(), StatusConstant.ENABLE))
+                .name(normalizeRequiredField(familyProfileDTO.getName(), "家属姓名不能为空"))
+                .phone(normalizePhoneForUser(normalizeOptionalField(familyProfileDTO.getPhone())))
+                .createTime(now)
+                .updateTime(now)
+                .build();
+        userMapper.insert(user);
+        return user.getId();
+    }
+
     private String normalizeOptionalField(String value) {
         if (value == null) {
             return null;
         }
         return value.trim();
+    }
+
+    private String normalizeRequiredField(String value, String errorMessage) {
+        if (!StringUtils.hasText(value)) {
+            throw new BaseException(errorMessage);
+        }
+        return value.trim();
+    }
+
+    private void syncUserProfile(Long userId, String name, String phone) {
+        User user = User.builder()
+                .id(userId)
+                .name(name)
+                .phone(normalizePhoneForUser(phone))
+                .updateTime(LocalDateTime.now())
+                .build();
+        userMapper.updateProfileInfo(user);
+    }
+
+    private String normalizePhoneForUser(String phone) {
+        String normalizedPhone = normalizeOptionalField(phone);
+        if (!StringUtils.hasText(normalizedPhone)) {
+            return null;
+        }
+        if (normalizedPhone.length() > 11) {
+            throw new BaseException("联系电话长度不能超过11位");
+        }
+        return normalizedPhone;
     }
 }

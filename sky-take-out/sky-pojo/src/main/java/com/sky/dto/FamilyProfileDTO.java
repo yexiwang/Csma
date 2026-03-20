@@ -16,6 +16,15 @@ public class FamilyProfileDTO implements Serializable {
     @ApiModelProperty("关联的 FAMILY 用户ID")
     private Long userId;
 
+    @ApiModelProperty("是否同步创建新的FAMILY账号")
+    private Boolean createUser;
+
+    @ApiModelProperty("新创建的FAMILY账号用户名")
+    private String username;
+
+    @ApiModelProperty("新创建的FAMILY账号密码")
+    private String password;
+
     @ApiModelProperty("家属姓名")
     private String name;
 

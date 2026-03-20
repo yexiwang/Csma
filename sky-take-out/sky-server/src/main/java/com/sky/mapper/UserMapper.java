@@ -20,5 +20,7 @@ public interface UserMapper {
     @Select("select * from user where username = #{username}")
     User getByUsername(String username);
 
+    void updateProfileInfo(User user);
+
     Integer countByMap(Map map);
 }

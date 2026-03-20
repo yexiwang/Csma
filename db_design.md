@@ -8,6 +8,16 @@
 
 - `community_meal_update.sql`
 - `login_role_auth_update.sql`
+- `family_profile_master_data_update.sql`
+- `family_profile_drop_name_phone_columns.sql`
+
+说明：
+
+- `family_profile_name_cleanup.sql`
+- `family_profile_phone_cleanup.sql`
+
+这两份脚本属于中间过渡脚本，用于把历史姓名、电话回填到 `user` 表。
+如果库已经完成最终删列，不应重复执行。
 
 ## 2. 当前数据库改造基线
 
@@ -113,6 +123,32 @@
 
 - 当前仓库里的登录实现仍按 MD5 校验密码，不是 BCrypt。
 - 后续如果要整体升级密码方案，应作为单独改造任务处理。
+- 对于 `role='FAMILY'` 的用户，`user.name` 与 `user.phone` 现在也是家属档案页的主数据来源。
+
+### 4.2.1 family_profile
+
+当前 `family_profile` 已从“家属姓名/电话资料表”收口为“家属档案业务表”。
+
+当前关键字段：
+
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `id` | bigint | 主键 |
+| `user_id` | bigint | 关联的 `FAMILY` 用户 ID，唯一 |
+| `remark` | varchar(255) | 家属档案备注 |
+| `status` | int | 档案状态，`1` 启用，`0` 停用 |
+| `create_time` | datetime | 创建时间 |
+| `update_time` | datetime | 更新时间 |
+| `create_user` | bigint | 创建人 |
+| `update_user` | bigint | 更新人 |
+| `is_deleted` | int | 逻辑删除标记，`0` 未删除，`1` 已删除 |
+
+说明：
+
+- `family_profile` 当前不再存储 `name`、`phone` 字段。
+- 家属姓名统一从 `user.name` 联查返回。
+- 家属电话统一从 `user.phone` 联查返回。
+- `family_profile` 的作用是承载家属档案状态、备注、逻辑删除和与 `FAMILY` 账号的一对一绑定关系。
 
 ### 4.3 dining_point
 
@@ -144,12 +180,13 @@
 | 字段 | 类型 | 说明 |
 | :--- | :--- | :--- |
 | `id` | bigint | 主键 |
-| `user_id` | bigint | 关联家属/账号 |
+| `user_id` | bigint | 关联的 `FAMILY` 用户 ID |
 | `name` | varchar(32) | 老人姓名 |
 | `gender` | char(1) | 性别 |
 | `age` | int | 年龄 |
 | `phone` | varchar(11) | 联系电话 |
 | `address` | varchar(255) | 地址 |
+| `dining_point_id` | bigint | 所属助餐点 |
 | `grid_code` | varchar(50) | 网格/片区编码 |
 | `health_info` | text | 健康情况 |
 | `special_needs` | varchar(255) | 特殊需求 |
@@ -157,6 +194,12 @@
 | `image` | varchar(255) | 照片 |
 | `create_time` | datetime | 创建时间 |
 | `update_time` | datetime | 更新时间 |
+| `is_deleted` | int | 逻辑删除标记 |
+
+说明：
+
+- 当前老人归属仍继续沿用 `elderly.user_id -> user.id`。
+- 管理员端保存老人时，必须绑定一个有效且启用的家属档案所对应的 `FAMILY` 用户。
 
 ### 4.5 volunteer_stats
 

@@ -20,4 +20,14 @@
         </where>
     </select>
 
+    <update id="updateProfileInfo" parameterType="com.sky.entity.User">
+        update user
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="phone != null">phone = #{phone},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </set>
+        where id = #{id}
+    </update>
+
 </mapper>

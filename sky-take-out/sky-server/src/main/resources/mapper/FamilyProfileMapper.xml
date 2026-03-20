@@ -5,17 +5,15 @@
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         insert into family_profile
-        (user_id, name, phone, remark, status, create_time, update_time, create_user, update_user, is_deleted)
+        (user_id, remark, status, create_time, update_time, create_user, update_user, is_deleted)
         values
-        (#{userId}, #{name}, #{phone}, #{remark}, #{status}, #{createTime}, #{updateTime}, #{createUser}, #{updateUser}, #{isDeleted})
+        (#{userId}, #{remark}, #{status}, #{createTime}, #{updateTime}, #{createUser}, #{updateUser}, #{isDeleted})
     </insert>
 
     <update id="update">
         update family_profile
         <set>
             <if test="userId != null">user_id = #{userId},</if>
-            <if test="name != null">name = #{name},</if>
-            <if test="phone != null">phone = #{phone},</if>
             <if test="remark != null">remark = #{remark},</if>
             <if test="status != null">status = #{status},</if>
             <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
@@ -29,8 +27,8 @@
         select fp.id,
                fp.user_id as userId,
                u.username,
-               fp.name,
-               fp.phone,
+               u.name as name,
+               u.phone as phone,
                fp.remark,
                fp.status,
                fp.create_time as createTime,
@@ -48,10 +46,10 @@
         <where>
             fp.is_deleted = 0
             <if test="name != null and name != ''">
-                and fp.name like concat('%', #{name}, '%')
+                and u.name like concat('%', #{name}, '%')
             </if>
             <if test="phone != null and phone != ''">
-                and fp.phone like concat('%', #{phone}, '%')
+                and u.phone like concat('%', #{phone}, '%')
             </if>
             <if test="status != null">
                 and fp.status = #{status}
@@ -64,8 +62,8 @@
         select fp.id,
                fp.user_id as userId,
                u.username,
-               fp.name,
-               fp.phone,
+               u.name as name,
+               u.phone as phone,
                fp.remark,
                fp.status,
                fp.create_time as createTime,
@@ -113,13 +111,13 @@
         select fp.id,
                fp.user_id as userId,
                u.username,
-               fp.name,
-               fp.phone
+               u.name as name,
+               u.phone as phone
         from family_profile fp
         left join user u on u.id = fp.user_id
         where fp.is_deleted = 0
           and fp.status = 1
-        order by fp.name asc, fp.id desc
+        order by u.name asc, fp.id desc
     </select>
 
     <select id="listFamilyUsers" resultType="com.sky.vo.FamilyUserOptionVO">
@@ -130,7 +128,7 @@
                u.status,
                if(fp.id is null, false, true) as bound,
                fp.id as boundFamilyProfileId,
-               fp.name as boundFamilyProfileName
+               u.name as boundFamilyProfileName
         from user u
         left join family_profile fp
             on fp.user_id = u.id
