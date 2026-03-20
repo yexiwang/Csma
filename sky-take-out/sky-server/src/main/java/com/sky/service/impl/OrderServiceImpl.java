@@ -173,6 +173,7 @@ public class OrderServiceImpl implements OrderService {
         orders.setTablewareNumber(ordersSubmitDTO.getTablewareNumber() == null ? 0 : ordersSubmitDTO.getTablewareNumber());
         orders.setExpectedTime(ordersSubmitDTO.getEstimatedDeliveryTime());
         orders.setEstimatedDeliveryTime(ordersSubmitDTO.getEstimatedDeliveryTime());
+        orders.setDeliveryStatus(ordersSubmitDTO.getDeliveryStatus() == null ? 0 : ordersSubmitDTO.getDeliveryStatus());
         orders.setUserName(addressBook.getConsignee());
         orders.setPhone(addressBook.getPhone());
         orders.setAddress(fullAddress);
@@ -219,20 +220,16 @@ public class OrderServiceImpl implements OrderService {
         jsonObject.put("code", "ORDERPAID");
         OrderPaymentVO vo = jsonObject.toJavaObject(OrderPaymentVO.class);
         vo.setPackageStr(jsonObject.getString("package"));
-
-        Integer orderPaidStatus = Orders.PAID;
-        Integer orderStatus = Orders.TO_BE_SCHEDULED;
-        LocalDateTime checkoutTime = LocalDateTime.now();
+        if (ordersPaymentDTO.getPayMethod() != null && !ordersPaymentDTO.getPayMethod().equals(ordersDB.getPayMethod())) {
+            Orders payMethodUpdate = Orders.builder()
+                    .id(ordersDB.getId())
+                    .payMethod(ordersPaymentDTO.getPayMethod())
+                    .build();
+            orderMapper.update(payMethodUpdate);
+        }
 
         log.info("模拟支付成功，按订单号更新订单状态: {}", orderNumber);
-        orderMapper.updateStatus(orderStatus, orderPaidStatus, checkoutTime, orderNumber);
-
-        Map<String, Object> map = new HashMap<>();
-        map.put("type", 1);
-        map.put("orderId", ordersDB.getId());
-        map.put("content", "订单号：" + orderNumber);
-        String json = JSON.toJSONString(map);
-        webSocketServer.sendToAllClient(json);
+        paySuccess(orderNumber);
 
         return vo;
     }
@@ -241,25 +238,23 @@ public class OrderServiceImpl implements OrderService {
     public void paySuccess(String outTradeNo) {
         Orders ordersDB = orderMapper.getByNumber(outTradeNo);
         if (ordersDB == null) {
+            log.warn("ignore paySuccess because order does not exist, orderNumber={}", outTradeNo);
             return;
         }
         if (!Orders.PENDING_PAYMENT.equals(ordersDB.getStatus())) {
-            log.warn("ignore paySuccess because order is no longer pending payment, orderNumber={}, status={}",
+            log.warn("忽略paySuccess，因为订单不再处于待处理状态, orderNumber={}, status={}",
                     outTradeNo, ordersDB.getStatus());
             return;
         }
         if (!isDiningPointAvailableForPendingPayment(ordersDB)) {
-            log.warn("ignore paySuccess because dining point is resting, orderNumber={}, orderId={}, diningPointId={}",
+            log.warn("忽略paySuccess，因为餐厅正在休息, orderNumber={}, orderId={}, diningPointId={}",
                     outTradeNo, ordersDB.getId(), ordersDB.getDiningPointId());
             return;
         }
-        Orders orders = Orders.builder()
-                .id(ordersDB.getId())
-                .status(Orders.TO_BE_SCHEDULED)
-                .payStatus(Orders.PAID)
-                .checkoutTime(LocalDateTime.now())
-                .build();
-        orderMapper.update(orders);
+        LocalDateTime checkoutTime = LocalDateTime.now();
+        log.info("paySuccess update order to to-be-scheduled, orderNumber={}, orderId={}", outTradeNo, ordersDB.getId());
+        orderMapper.updateStatus(Orders.TO_BE_SCHEDULED, Orders.PAID, checkoutTime, outTradeNo);
+        notifyOrderPaid(ordersDB.getId(), outTradeNo);
     }
 
     @Override
@@ -521,6 +516,15 @@ public class OrderServiceImpl implements OrderService {
         map.put("type", 2);
         map.put("orderId", ordersDB.getId());
         map.put("content", "订单号：" + ordersDB.getNumber());
+        String json = JSON.toJSONString(map);
+        webSocketServer.sendToAllClient(json);
+    }
+
+    private void notifyOrderPaid(Long orderId, String orderNumber) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("type", 1);
+        map.put("orderId", orderId);
+        map.put("content", "订单号：" + orderNumber);
         String json = JSON.toJSONString(map);
         webSocketServer.sendToAllClient(json);
     }
@@ -1154,5 +1158,3 @@ public class OrderServiceImpl implements OrderService {
     }
 
 }
-
-

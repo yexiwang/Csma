@@ -188,6 +188,7 @@
 | `pack_amount` | 当前 FAMILY 主流程固定 `0` |
 | `expected_time` | 期望送达时间 |
 | `estimated_delivery_time` | FAMILY 提交的预计送达时间 |
+| `delivery_status` | 配送时间选择状态，当前 FAMILY 主流程固定写 `0` |
 | `order_time` | 下单时间 |
 | `checkout_time` | 支付完成时间 |
 | `cancel_time` | 取消时间 |
@@ -200,6 +201,7 @@
   - `personal_pay = payAmount`
   - `subsidy_amount = 0`
   - `pack_amount = 0`
+- FAMILY 下单当前固定提交 `delivery_status = 0`；后端也会在 `OrdersSubmitDTO.deliveryStatus` 为空时默认补 `0`，避免因数据库非空约束导致事务回滚。
 
 ## 4. FAMILY 当前金额模型
 
@@ -272,21 +274,29 @@
 当前支付功能需要特别说明：
 
 - `orders.number` 仍然是 FAMILY 支付接口使用的订单号。
-- 前端当前直接依赖 `/user/order/submit` 返回：
-  - `data.id`
-  - `data.orderNumber`
-- 如果后端返回体缺少 `id` 或 `orderNumber`，前端不会再通过历史订单或详情接口兜底猜测订单号，而是直接提示：
-  - `订单创建成功，但未返回有效订单信息`
+- 后端模拟支付当前已统一为：
+  - `payment(orderNumber)` 做 FAMILY 归属、待支付状态、助餐点营业等前置校验
+  - `paySuccess(orderNumber)` 统一处理支付成功后的状态更新
+- `paySuccess(orderNumber)` 当前固定执行：
+  - `status = 2`
+  - `pay_status = 1`
+  - `checkout_time = now`
+  - 触发现有 WebSocket 来单提醒
+- 历史订单“继续支付”和 `/notify/paySuccess` 当前都复用同一套 `paySuccess(orderNumber)` 逻辑。
+- 前端当前会对 `/user/order/submit` 和 `/user/order/payment` 的业务码做校验；若后端返回 `code = 0`，页面直接展示真实错误，不再误报“订单创建成功”。
 - `/user/order/payment` 当前只允许处理 `status = 1` 的待支付订单。
 - 如果传入旧订单号、重复触发支付，或该订单已经被推进到非待支付状态，后端返回：
   - `订单状态错误`
   这属于当前状态保护逻辑。
 
-当前已知问题的核心不在数据库缺字段，而在接口契约和时序联调：
+当前仍需继续关注的点主要在返回契约，而不是数据库字段本身：
 
-- `/user/order/submit` 返回契约需要稳定
-- `/submit -> /payment` 的前后端串联需要继续联调
-- 文档口径应把这部分视为“已知问题，尚未完全收口”，而不是“已完全稳定闭环”
+- 前端当前仍依赖 `/user/order/submit` 返回：
+  - `data.id`
+  - `data.orderNumber`
+- 如果后端未来返回体缺少 `id` 或 `orderNumber`，前端仍会提示：
+  - `订单创建成功，但未返回有效订单信息`
+- 因此后续应继续从 `/user/order/submit` 的返回契约稳定化入手，而不是继续扩大前端兜底。
 
 ## 9. 维护说明
 

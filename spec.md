@@ -193,7 +193,8 @@
 - 仓库中保留的 `Pinia` 相关草稿文件没有接入当前 Vue 2 主流程。
 - 当前支付链路仍需特别注意：
   - FAMILY 下单后仍会立即调用 `PUT /user/order/payment`
-  - 前端当前直接依赖 `/user/order/submit` 返回有效的 `data.id` 和 `data.orderNumber`
+  - 前端当前会对 `/user/order/submit` 和 `/user/order/payment` 的 `code` 做业务成功校验；若后端返回 `code = 0`，页面会直接展示真实错误，不再误报“订单创建成功”
+  - 前端当前仍直接依赖 `/user/order/submit` 返回有效的 `data.id` 和 `data.orderNumber`
   - 如果后端返回体缺少 `id` 或 `orderNumber`，前端会提示“订单创建成功，但未返回有效订单信息”
   - `/user/order/payment` 只允许处理 `status = 1` 的待支付订单；如果传入旧订单号、重复支付或订单已推进到其它状态，后端会返回“订单状态错误”
   - 当前没有再通过历史订单反查、详情回查等前端兜底方式绕过这个问题
@@ -469,6 +470,7 @@
   - `addressBookId`
   - `remark`
   - `estimatedDeliveryTime`
+  - `deliveryStatus`
   - `tablewareStatus`
   - `tablewareNumber`
   - `dishAmount`
@@ -493,6 +495,7 @@
   - 地址列表按 `is_default desc, id desc` 排序
   - 用户首个地址自动设为默认地址
   - 地址页在 checkout 模式下返回 `/family-order?resumeCheckout=1&selectedAddressId=...`
+- FAMILY 下单提交当前固定带 `deliveryStatus = 0`；后端在落库前也会为缺省值补 `deliveryStatus = 0`，避免 `orders.delivery_status` 非空约束导致整笔订单回滚。
 - 下单成功后会在同一事务内清空后端购物车，并跳转 `/family-history?createdOrderId=...` 高亮新订单。
 - 如果“提交成功但支付失败”，当前也按“订单已创建”处理：
   - 不保留购物车
@@ -589,11 +592,20 @@
 
 当前支付功能的状态应按以下方式理解：
 
-- 后端支付状态保护本身仍然有效：
-  - 只有 `1 待支付` 订单允许继续支付推进
-  - 非待支付状态返回“订单状态错误”属于当前后端设计，不是单独新增的异常逻辑
-- 当前真正未收口的问题在于“下单返回契约 + 支付串联”：
-  - 前端依赖 `/user/order/submit` 返回 `id + orderNumber`
-  - 如果返回缺字段、字段结构不一致，前端无法安全继续支付
-- 为避免误拿历史订单号、旧订单号或非当前订单信息，当前版本已经明确不再用前端回查历史订单的方式兜底支付
-- 因此，这部分问题后续推荐优先从后端返回契约稳定化入手，而不是继续扩大前端兜底逻辑
+- 后端模拟支付当前已按最小改动方式统一收口：
+  - `payment(orderNumber)` 只做必要校验和模拟支付发起
+  - 支付成功后的状态更新统一走 `paySuccess(orderNumber)`
+  - 历史订单“继续支付”和 `/notify/paySuccess` 也复用 `paySuccess(orderNumber)`
+- `paySuccess(orderNumber)` 当前统一负责：
+  - 查询订单
+  - 仅允许 `1 待支付` 订单推进
+  - 将订单更新为 `2 待调度`
+  - 将 `pay_status` 更新为 `1 已支付`
+  - 写入 `checkout_time`
+  - 触发现有 WebSocket 来单提醒
+- 前端当前已经不再把 `code = 0` 的下单或支付响应误当成成功。
+- 当前仍未完全收口的问题集中在 `/user/order/submit` 返回契约：
+  - 前端依赖返回 `id + orderNumber`
+  - 如果返回缺字段、字段结构不一致，前端仍无法安全继续支付
+- 为避免误拿历史订单号、旧订单号或非当前订单信息，当前版本已经明确不再用前端回查历史订单的方式兜底支付。
+- 因此，后续支付链路的继续优化方向仍应优先放在后端返回契约稳定化，而不是继续扩大前端兜底逻辑。

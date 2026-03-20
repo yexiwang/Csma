@@ -1265,6 +1265,7 @@ export default class UserOrder extends Vue {
         payMethod: 1,
         remark: normalizeCheckoutRemark(this.checkoutForm.remark),
         estimatedDeliveryTime: this.checkoutForm.estimatedDeliveryTime || undefined,
+        deliveryStatus: 0,
         tablewareStatus: this.checkoutForm.tablewareStatus,
         tablewareNumber: this.checkoutForm.tablewareNumber,
         dishAmount: this.cartSummary.dishAmount,
@@ -1407,6 +1408,9 @@ export default class UserOrder extends Vue {
     const message = this.resolveErrorMessage(error, '')
     if (message.includes('助餐点') && message.includes('休息')) {
       return '订单已创建，但当前助餐点已休息，暂不可继续支付，请联系管理员处理'
+    }
+    if (message.includes('订单状态错误')) {
+      return '订单状态已更新，请前往历史订单刷新查看'
     }
     return '订单已创建，可在历史订单继续支付'
   }

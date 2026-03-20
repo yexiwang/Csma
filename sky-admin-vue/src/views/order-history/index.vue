@@ -518,8 +518,13 @@ export default class OrderHistory extends Vue {
       await this.loadOrders()
       await this.refreshDetailIfNeeded(Number(order.id))
     } catch (error) {
+      const rawPaymentMessage = this.resolveErrorMessage(error, '')
       const paymentErrorMessage = this.resolvePaymentErrorMessage(error)
-      if (paymentErrorMessage.includes('助餐点') && paymentErrorMessage.includes('休息')) {
+      if (rawPaymentMessage.includes('订单状态错误')) {
+        await this.loadOrders()
+        await this.refreshDetailIfNeeded(Number(order.id))
+        this.$message.warning(paymentErrorMessage)
+      } else if (paymentErrorMessage.includes('助餐点') && paymentErrorMessage.includes('休息')) {
         this.$message.warning(paymentErrorMessage)
       } else {
         this.$message.error(paymentErrorMessage)
@@ -591,7 +596,11 @@ export default class OrderHistory extends Vue {
   }
 
   private resolvePaymentErrorMessage(error: any) {
-    return this.resolveErrorMessage(error, '继续支付失败，请重试')
+    const message = this.resolveErrorMessage(error, '')
+    if (message.includes('订单状态错误')) {
+      return '订单状态已更新，请刷新查看'
+    }
+    return message || '继续支付失败，请重试'
   }
 }
 </script>

@@ -5,6 +5,7 @@ import com.sky.dto.GoodsSalesDTO;
 import com.sky.dto.OrdersPageQueryDTO;
 import com.sky.entity.Orders;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
@@ -36,9 +37,12 @@ public interface OrderMapper {
     /**
      * 支付成功后更新订单状态
      */
-    @Update("update orders set status = #{orderStatus},pay_status = #{orderPaidStatus} ,checkout_time = #{check_out_time} " +
+    @Update("update orders set status = #{orderStatus}, pay_status = #{orderPaidStatus}, checkout_time = #{checkoutTime} " +
             "where number = #{orderNumber}")
-    void updateStatus(Integer orderStatus, Integer orderPaidStatus, LocalDateTime check_out_time, String orderNumber);
+    void updateStatus(@Param("orderStatus") Integer orderStatus,
+                      @Param("orderPaidStatus") Integer orderPaidStatus,
+                      @Param("checkoutTime") LocalDateTime checkoutTime,
+                      @Param("orderNumber") String orderNumber);
 
     /**
      * 分页查询订单
@@ -70,7 +74,7 @@ public interface OrderMapper {
      * 根据订单状态和下单时间查询订单
      */
     @Select("select * from orders where status = #{status} and order_time < #{time}")
-    List<Orders> getByStatusAndTimeLT(Integer status, LocalDateTime time);
+    List<Orders> getByStatusAndTimeLT(@Param("status") Integer status, @Param("time") LocalDateTime time);
 
     /**
      * 根据动态条件统计金额
@@ -85,7 +89,7 @@ public interface OrderMapper {
     /**
      * 统计指定时间区间内销量 top10
      */
-    Integer countOverdueByStatus(Integer status, LocalDateTime cutoffTime);
+    Integer countOverdueByStatus(@Param("status") Integer status, @Param("cutoffTime") LocalDateTime cutoffTime);
 
-    List<GoodsSalesDTO> getSalesTop10(LocalDateTime begin, LocalDateTime end);
+    List<GoodsSalesDTO> getSalesTop10(@Param("begin") LocalDateTime begin, @Param("end") LocalDateTime end);
 }

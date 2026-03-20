@@ -23,13 +23,13 @@ public class OrderTask {
     private OrderMapper orderMapper;
 
     /**
-     * Cancel unpaid orders that have timed out.
+     * 取消那些已逾期的未付款订单。
      */
     @Scheduled(cron = "0 * * * * ?")
     public void processTimeOutTask() {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime timeoutBefore = now.minusMinutes(PAYMENT_TIMEOUT_MINUTES);
-        log.info("process payment timeout orders, now={}, timeoutBefore={}", now, timeoutBefore);
+        log.info("处理付款超时命令, now={}, timeoutBefore={}", now, timeoutBefore);
 
         for (Orders order : orderMapper.getByStatusAndTimeLT(Orders.PENDING_PAYMENT, timeoutBefore)) {
             order.setStatus(Orders.CANCELLED);
@@ -40,7 +40,7 @@ public class OrderTask {
     }
 
     /**
-     * Log overdue in-flight orders for manual follow-up. The task does not mutate order status.
+     * 记录逾期的机上订单以便人工跟进。该任务不会改变顺序状态。
      */
     @Scheduled(cron = "0 */10 * * * ?")
     public void processAbnormalOrderWarningTask() {
@@ -54,7 +54,7 @@ public class OrderTask {
         Integer count = orderMapper.countOverdueByStatus(status, now);
         int overdueCount = count == null ? 0 : count;
         if (overdueCount > 0) {
-            log.warn("detected overdue orders, label={}, status={}, count={}, now={}", label, status, overdueCount, now);
+            log.warn("检测到逾期订单, label={}, status={}, count={}, now={}", label, status, overdueCount, now);
         }
     }
 }

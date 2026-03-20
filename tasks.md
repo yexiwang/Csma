@@ -46,6 +46,14 @@
   - 新增超时未履约日志识别，不改状态
 - 统计口径已统一为当前 `1-7` 语义。
 - ADMIN dashboard、ADMIN/OPERATOR 订单相关前端状态文案已按新语义收口。
+- FAMILY 模拟支付链路已做最小修复：
+  - `payment(orderNumber)` 统一调用 `paySuccess(orderNumber)`
+  - `paySuccess(orderNumber)` 统一更新 `status=2`、`pay_status=1`、`checkout_time`
+  - 历史订单“继续支付”与支付回调复用同一套状态更新逻辑
+- FAMILY 下单提交链路已补齐业务失败识别：
+  - `/user/order/submit` 返回 `code=0` 时，前端直接提示真实错误，不再误报“订单创建成功”
+  - 下单会显式提交 `deliveryStatus=0`
+  - 后端在落库前也会默认补 `deliveryStatus=0`，避免因 `delivery_status` 非空约束导致事务回滚
 
 ## 当前仍待继续
 
@@ -57,16 +65,16 @@
 - 全角色越权回归与跨助餐点数据隔离复核。
 
 ### 支付链路
-- `/user/order/submit -> /user/order/payment` 的返回契约仍需稳定收口。
-- 当前前端仍要求 `/user/order/submit` 返回有效的：
-  - `data.id`
-  - `data.orderNumber`
-- 如果后端返回体缺少其中任一字段，前端会直接提示：
-  - `订单创建成功，但未返回有效订单信息`
-- `/user/order/payment` 当前只允许处理 `status = 1` 的待支付订单。
+- `/user/order/submit -> /user/order/payment` 的主链路已恢复到可用状态。
+- `payment(orderNumber)`、历史订单继续支付、`/notify/paySuccess` 当前都复用 `paySuccess(orderNumber)`。
+- `/user/order/payment` 仍然只允许处理 `status = 1` 的待支付订单。
 - 如果传入旧订单号、重复支付，或该订单已被推进到非待支付状态，后端会返回：
   - `订单状态错误`
-- 当前这部分问题没有再用前端兜底逻辑强行绕过，后续应以后端稳定返回 `OrderSubmitVO(id, orderNumber, orderAmount, orderTime)` 为主修方向。
+- 当前仍需继续稳定的是 `/user/order/submit` 的返回契约：
+  - 前端仍要求返回 `data.id`
+  - 前端仍要求返回 `data.orderNumber`
+  - 如果后端未来缺少其中任一字段，前端仍会提示“订单创建成功，但未返回有效订单信息”
+- 后续支付链路的继续优化方向仍是：后端稳定返回 `OrderSubmitVO(id, orderNumber, orderAmount, orderTime)`，而不是继续扩大前端兜底。
 
 ## 当前固定规则
 
