@@ -160,6 +160,12 @@
         </where>
     </select>
 
+    <select id="countByElderId" resultType="java.lang.Integer">
+        select count(1)
+        from orders
+        where elder_id = #{elderId}
+    </select>
+
     <select id="getSalesTop10" resultType="com.sky.dto.GoodsSalesDTO">
         select od.name name,sum(od.number) number from order_detail od ,orders o
         where od.order_id = o.id

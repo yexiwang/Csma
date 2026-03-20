@@ -8,14 +8,26 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 @Data
-@ApiModel(description = "管理员老人档案返回数据")
+@ApiModel(description = "老人档案返回数据")
 public class ElderlyVO implements Serializable {
 
     @ApiModelProperty("老人ID")
     private Long id;
 
-    @ApiModelProperty("关联用户ID(家属或本人)")
+    @ApiModelProperty("关联的FAMILY用户ID")
     private Long userId;
+
+    @ApiModelProperty("关联的家属档案ID")
+    private Long familyProfileId;
+
+    @ApiModelProperty("FAMILY用户账号")
+    private String familyUsername;
+
+    @ApiModelProperty("家属姓名")
+    private String familyName;
+
+    @ApiModelProperty("家属联系电话")
+    private String familyPhone;
 
     @ApiModelProperty("老人姓名")
     private String name;
@@ -32,7 +44,7 @@ public class ElderlyVO implements Serializable {
     @ApiModelProperty("详细居住地址")
     private String address;
 
-    @ApiModelProperty("所属助餐点ID/默认助餐点ID")
+    @ApiModelProperty("所属助餐点ID")
     private Long diningPointId;
 
     @ApiModelProperty("所属助餐点名称")
@@ -58,4 +70,7 @@ public class ElderlyVO implements Serializable {
 
     @ApiModelProperty("更新时间")
     private LocalDateTime updateTime;
+
+    @ApiModelProperty("逻辑删除标记")
+    private Integer isDeleted;
 }

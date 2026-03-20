@@ -3,13 +3,22 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
 <mapper namespace="com.sky.mapper.ElderlyMapper">
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        insert into elderly (user_id, name, gender, age, phone, address, dining_point_id, grid_code, health_info, special_needs, id_card, image, create_time, update_time)
-        values (#{userId}, #{name}, #{gender}, #{age}, #{phone}, #{address}, #{diningPointId}, #{gridCode}, #{healthInfo}, #{specialNeeds}, #{idCard}, #{image}, #{createTime}, #{updateTime})
+        insert into elderly (
+            user_id, name, gender, age, phone, address, dining_point_id,
+            grid_code, health_info, special_needs, id_card, image,
+            create_time, update_time, is_deleted
+        )
+        values (
+            #{userId}, #{name}, #{gender}, #{age}, #{phone}, #{address}, #{diningPointId},
+            #{gridCode}, #{healthInfo}, #{specialNeeds}, #{idCard}, #{image},
+            #{createTime}, #{updateTime}, #{isDeleted}
+        )
     </insert>
 
     <update id="update">
         update elderly
         <set>
+            <if test="userId != null">user_id = #{userId},</if>
             <if test="name != null">name = #{name},</if>
             <if test="gender != null">gender = #{gender},</if>
             <if test="age != null">age = #{age},</if>
@@ -22,32 +31,50 @@
             <if test="idCard != null">id_card = #{idCard},</if>
             <if test="image != null">image = #{image},</if>
             <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
         </set>
         where id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <update id="deleteById">
+        update elderly
+        set is_deleted = 1,
+            update_time = #{updateTime}
+        where id = #{id}
+          and is_deleted = 0
     </update>
 
     <select id="pageQueryWithDiningPoint" resultType="com.sky.vo.ElderlyVO">
         select e.id,
-               e.user_id,
+               e.user_id as userId,
+               fp.id as familyProfileId,
+               u.username as familyUsername,
+               fp.name as familyName,
+               fp.phone as familyPhone,
                e.name,
                e.gender,
                e.age,
                e.phone,
                e.address,
-               e.dining_point_id,
+               e.dining_point_id as diningPointId,
                dp.name as diningPointName,
-               e.grid_code,
-               e.health_info,
-               e.special_needs,
-               e.id_card,
+               e.grid_code as gridCode,
+               e.health_info as healthInfo,
+               e.special_needs as specialNeeds,
+               e.id_card as idCard,
                e.image,
-               e.create_time,
-               e.update_time
+               e.create_time as createTime,
+               e.update_time as updateTime,
+               e.is_deleted as isDeleted
         from elderly e
         left join dining_point dp on e.dining_point_id = dp.id
+        left join user u on e.user_id = u.id
+        left join family_profile fp on fp.user_id = e.user_id and fp.is_deleted = 0
         <where>
+            e.is_deleted = 0
             <if test="name != null and name != ''">
-                and e.name like concat('%',#{name},'%')
+                and e.name like concat('%', #{name}, '%')
             </if>
             <if test="userId != null">
                 and e.user_id = #{userId}
@@ -56,14 +83,16 @@
                 and e.grid_code = #{gridCode}
             </if>
         </where>
-        order by e.create_time desc
+        order by e.create_time desc, e.id desc
     </select>
 
     <select id="pageQuery" resultType="com.sky.entity.Elderly">
-        select * from elderly
+        select *
+        from elderly
         <where>
+            is_deleted = 0
             <if test="name != null and name != ''">
-                and name like concat('%',#{name},'%')
+                and name like concat('%', #{name}, '%')
             </if>
             <if test="userId != null">
                 and user_id = #{userId}
@@ -72,28 +101,37 @@
                 and grid_code = #{gridCode}
             </if>
         </where>
-        order by create_time desc
+        order by create_time desc, id desc
     </select>
 
     <select id="getDetailById" resultType="com.sky.vo.ElderlyVO">
         select e.id,
-               e.user_id,
+               e.user_id as userId,
+               fp.id as familyProfileId,
+               u.username as familyUsername,
+               fp.name as familyName,
+               fp.phone as familyPhone,
                e.name,
                e.gender,
                e.age,
                e.phone,
                e.address,
-               e.dining_point_id,
+               e.dining_point_id as diningPointId,
                dp.name as diningPointName,
-               e.grid_code,
-               e.health_info,
-               e.special_needs,
-               e.id_card,
+               e.grid_code as gridCode,
+               e.health_info as healthInfo,
+               e.special_needs as specialNeeds,
+               e.id_card as idCard,
                e.image,
-               e.create_time,
-               e.update_time
+               e.create_time as createTime,
+               e.update_time as updateTime,
+               e.is_deleted as isDeleted
         from elderly e
         left join dining_point dp on e.dining_point_id = dp.id
+        left join user u on e.user_id = u.id
+        left join family_profile fp on fp.user_id = e.user_id and fp.is_deleted = 0
         where e.id = #{id}
+          and e.is_deleted = 0
+        limit 1
     </select>
 </mapper>

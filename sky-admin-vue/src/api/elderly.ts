@@ -9,6 +9,10 @@ export interface ElderlyPageParams {
 export interface ElderlyFormData {
   id?: number
   userId?: number
+  familyProfileId?: number
+  familyName?: string
+  familyPhone?: string
+  familyUsername?: string
   name?: string
   gender?: string
   age?: number

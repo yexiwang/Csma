@@ -13,11 +13,12 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Elderly implements Serializable {
+
     private static final long serialVersionUID = 1L;
 
     private Long id;
 
-    // 关联用户ID(家属或本人)
+    // 关联的 FAMILY 用户 ID
     private Long userId;
 
     // 老人姓名
@@ -35,13 +36,13 @@ public class Elderly implements Serializable {
     // 详细居住地址
     private String address;
 
-    // 所属助餐点ID/默认助餐点ID，表示该老人默认由哪个助餐点提供助餐服务
+    // 所属助餐点 ID
     private Long diningPointId;
 
     // 所属网格/片区
     private String gridCode;
 
-    // 健康状况(慢性病/过敏源)
+    // 健康状况
     private String healthInfo;
 
     // 特殊需求
@@ -56,4 +57,7 @@ public class Elderly implements Serializable {
     private LocalDateTime createTime;
 
     private LocalDateTime updateTime;
+
+    // 逻辑删除标记 0未删除 1已删除
+    private Integer isDeleted;
 }

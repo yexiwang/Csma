@@ -31,6 +31,8 @@
         </el-table-column>
         <el-table-column prop="age" label="年龄" width="80" />
         <el-table-column prop="phone" label="联系电话" min-width="120" />
+        <el-table-column prop="familyName" label="关联家属" min-width="140" />
+        <el-table-column prop="familyUsername" label="FAMILY账号" min-width="160" />
         <el-table-column prop="address" label="居住地址" min-width="180" show-overflow-tooltip />
         <el-table-column label="所属助餐点" min-width="160">
           <template slot-scope="{ row }">
@@ -65,6 +67,7 @@
         class="pageList"
         :page-sizes="[10, 20, 30, 40]"
         :page-size="pageSize"
+        :current-page="page"
         layout="total, sizes, prev, pager, next, jumper"
         :total="total"
         @size-change="handleSizeChange"
@@ -75,10 +78,10 @@
     <el-dialog
       :title="title"
       :visible.sync="open"
-      width="600px"
+      width="640px"
       append-to-body
     >
-      <el-form ref="form" :model="form" :rules="rules" label-width="100px">
+      <el-form ref="form" :model="form" :rules="rules" label-width="110px">
         <el-row>
           <el-col :span="12">
             <el-form-item label="姓名" prop="name">
@@ -106,6 +109,22 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <el-form-item label="关联家属" prop="selectedFamilyProfileId">
+          <el-select
+            v-model="form.selectedFamilyProfileId"
+            placeholder="请选择关联家属"
+            style="width: 100%"
+            filterable
+          >
+            <el-option
+              v-for="item in familyProfileOptions"
+              :key="item.id"
+              :label="formatFamilyProfileLabel(item)"
+              :value="item.id"
+              :disabled="Boolean(item.disabled)"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="居住地址" prop="address">
           <el-input v-model="form.address" type="textarea" placeholder="请输入详细住址" />
         </el-form-item>
@@ -157,10 +176,20 @@ import {
   queryElderlyById
 } from '@/api/elderly'
 import { DiningPointOption, getDiningPointList } from '@/api/diningPoint'
+import { FamilyProfileOption, getFamilyProfileOptions } from '@/api/familyProfile'
 
 interface PageResponse<T> {
   total?: number
   records?: T[]
+}
+
+interface FamilyProfileSelectOption extends FamilyProfileOption {
+  disabled?: boolean
+  isInjected?: boolean
+}
+
+interface ElderlyViewForm extends ElderlyFormData {
+  selectedFamilyProfileId?: number
 }
 
 @Component({
@@ -177,10 +206,13 @@ export default class extends Vue {
   }
   private open = false
   private title = ''
-  private form: ElderlyFormData = this.createDefaultForm()
+  private form: ElderlyViewForm = this.createDefaultForm()
   private diningPointOptions: DiningPointOption[] = []
+  private familyProfileOptions: FamilyProfileSelectOption[] = []
+  private activeFamilyProfileOptions: FamilyProfileSelectOption[] = []
   private rules = {
     name: [{ required: true, message: '姓名不能为空', trigger: 'blur' }],
+    selectedFamilyProfileId: [{ required: true, message: '请选择关联家属', trigger: 'change' }],
     phone: [{ required: true, message: '电话不能为空', trigger: 'blur' }],
     address: [{ required: true, message: '地址不能为空', trigger: 'blur' }],
     diningPointId: [{ required: true, message: '请选择所属助餐点', trigger: 'change' }]
@@ -188,13 +220,19 @@ export default class extends Vue {
 
   created() {
     this.loadDiningPointOptions()
+    this.loadActiveFamilyProfileOptions()
     this.getList()
   }
 
-  private createDefaultForm(): ElderlyFormData {
+  private createDefaultForm(): ElderlyViewForm {
     return {
       id: undefined,
       userId: undefined,
+      familyProfileId: undefined,
+      familyName: '',
+      familyPhone: '',
+      familyUsername: '',
+      selectedFamilyProfileId: undefined,
       name: '',
       gender: '1',
       age: 60,
@@ -210,12 +248,16 @@ export default class extends Vue {
     }
   }
 
-  private unwrapData<T>(response: any): T {
-    return response && response.data && response.data.data ? response.data.data : response.data
+  private unwrapData<T>(response: any, fallback: string): T {
+    const payload = response && response.data ? response.data : response
+    if (!payload || String(payload.code) !== '1') {
+      throw new Error((payload && payload.msg) || fallback)
+    }
+    return typeof payload.data !== 'undefined' ? payload.data : payload
   }
 
-  private unwrapPage<T>(response: any): PageResponse<T> {
-    return this.unwrapData<PageResponse<T>>(response) || {}
+  private unwrapPage<T>(response: any, fallback: string): PageResponse<T> {
+    return this.unwrapData<PageResponse<T>>(response, fallback) || {}
   }
 
   private getErrorMessage(error: any, fallback: string) {
@@ -232,7 +274,7 @@ export default class extends Vue {
         pageSize: this.pageSize,
         name: this.queryParams.name.trim() || undefined
       }
-      const pageData = this.unwrapPage<ElderlyFormData>(await getElderlyPage(params))
+      const pageData = this.unwrapPage<ElderlyFormData>(await getElderlyPage(params), '获取老人档案失败')
       this.tableData = Array.isArray(pageData.records) ? pageData.records : []
       this.total = pageData.total || 0
     } catch (error) {
@@ -249,7 +291,7 @@ export default class extends Vue {
 
   private async loadDiningPointOptions() {
     try {
-      const data = this.unwrapData<DiningPointOption[]>(await getDiningPointList({ status: 1 }))
+      const data = this.unwrapData<DiningPointOption[]>(await getDiningPointList({ status: 1 }), '加载助餐点列表失败')
       this.diningPointOptions = Array.isArray(data) ? data : []
     } catch (error) {
       this.diningPointOptions = []
@@ -257,19 +299,38 @@ export default class extends Vue {
     }
   }
 
-  private handleAdd() {
+  private async loadActiveFamilyProfileOptions() {
+    try {
+      const data = this.unwrapData<FamilyProfileOption[]>(await getFamilyProfileOptions(), '加载家属档案列表失败')
+      this.activeFamilyProfileOptions = Array.isArray(data)
+        ? data.map((item) => ({ ...item }))
+        : []
+      this.familyProfileOptions = [...this.activeFamilyProfileOptions]
+    } catch (error) {
+      this.activeFamilyProfileOptions = []
+      this.familyProfileOptions = []
+      this.$message.error(this.getErrorMessage(error, '加载家属档案列表失败'))
+    }
+  }
+
+  private async handleAdd() {
     this.reset()
     this.title = '新增老人档案'
+    await this.loadActiveFamilyProfileOptions()
+    this.familyProfileOptions = [...this.activeFamilyProfileOptions]
     this.open = true
   }
 
   private async handleEdit(row: ElderlyFormData) {
     this.reset()
     try {
-      const elderlyData = this.unwrapData<ElderlyFormData>(await queryElderlyById(Number(row.id)))
+      await this.loadActiveFamilyProfileOptions()
+      const elderlyData = this.unwrapData<ElderlyFormData>(await queryElderlyById(Number(row.id)), '获取老人详情失败')
+      const selectedFamilyProfileId = this.resolveSelectedFamilyProfileId(elderlyData)
       this.form = {
         ...this.createDefaultForm(),
-        ...elderlyData
+        ...elderlyData,
+        selectedFamilyProfileId
       }
       this.title = '修改老人档案'
       this.open = true
@@ -283,12 +344,35 @@ export default class extends Vue {
       if (!valid) {
         return
       }
+
+      const selectedOption = this.familyProfileOptions.find((item) => item.id === this.form.selectedFamilyProfileId)
+      if (!selectedOption || !selectedOption.userId) {
+        this.$message.error('请选择关联家属')
+        return
+      }
+
+      const payload: ElderlyFormData = {
+        id: this.form.id,
+        userId: selectedOption.userId,
+        name: this.form.name,
+        gender: this.form.gender,
+        age: this.form.age,
+        phone: this.form.phone,
+        address: this.form.address,
+        diningPointId: this.form.diningPointId,
+        gridCode: this.form.gridCode,
+        healthInfo: this.form.healthInfo,
+        specialNeeds: this.form.specialNeeds,
+        idCard: this.form.idCard,
+        image: this.form.image
+      }
+
       try {
         if (this.form.id !== undefined) {
-          await editElderly(this.form)
+          this.unwrapData(await editElderly(payload), '修改失败')
           this.$message.success('修改成功')
         } else {
-          await addElderly(this.form)
+          this.unwrapData(await addElderly(payload), '新增失败')
           this.$message.success('新增成功')
         }
         this.open = false
@@ -306,14 +390,62 @@ export default class extends Vue {
     this.$confirm('确认删除该老人档案吗？', '提示', {
       type: 'warning'
     }).then(async () => {
-      await deleteElderly(id)
-      this.$message.success('删除成功')
-      this.getList()
-    })
+      try {
+        this.unwrapData(await deleteElderly(id), '删除失败')
+        this.$message.success('删除成功')
+        this.getList()
+      } catch (error) {
+        this.$message.error(this.getErrorMessage(error, '删除失败'))
+      }
+    }).catch(() => {})
+  }
+
+  private resolveSelectedFamilyProfileId(elderlyData: ElderlyFormData) {
+    const matchedByProfileId = elderlyData.familyProfileId
+      ? this.activeFamilyProfileOptions.find((item) => item.id === elderlyData.familyProfileId)
+      : undefined
+    if (matchedByProfileId) {
+      this.familyProfileOptions = [...this.activeFamilyProfileOptions]
+      return matchedByProfileId.id
+    }
+
+    const matchedByUserId = elderlyData.userId
+      ? this.activeFamilyProfileOptions.find((item) => item.userId === elderlyData.userId)
+      : undefined
+    if (matchedByUserId) {
+      this.familyProfileOptions = [...this.activeFamilyProfileOptions]
+      return matchedByUserId.id
+    }
+
+    if (elderlyData.familyProfileId) {
+      const injectedOption: FamilyProfileSelectOption = {
+        id: elderlyData.familyProfileId,
+        userId: elderlyData.userId || 0,
+        username: elderlyData.familyUsername,
+        name: elderlyData.familyName || '当前已绑定家属',
+        phone: elderlyData.familyPhone,
+        disabled: true,
+        isInjected: true
+      }
+      this.familyProfileOptions = [injectedOption, ...this.activeFamilyProfileOptions]
+      return injectedOption.id
+    }
+
+    this.familyProfileOptions = [...this.activeFamilyProfileOptions]
+    return undefined
+  }
+
+  private formatFamilyProfileLabel(item: FamilyProfileSelectOption) {
+    const name = item.name || '未命名家属'
+    const phone = item.phone || '-'
+    const username = item.username || `ID:${item.userId}`
+    const suffix = item.isInjected ? '（当前绑定，已停用）' : ''
+    return `${name}（${phone} / ${username}）${suffix}`
   }
 
   private reset() {
     this.form = this.createDefaultForm()
+    this.familyProfileOptions = [...this.activeFamilyProfileOptions]
   }
 
   private cancel() {
@@ -323,6 +455,7 @@ export default class extends Vue {
 
   private handleSizeChange(val: number) {
     this.pageSize = val
+    this.page = 1
     this.getList()
   }
 
@@ -350,6 +483,12 @@ export default class extends Vue {
       .tableLab {
         float: right;
       }
+    }
+
+    .tableBox {
+      width: 100%;
+      border: 1px solid $gray-5;
+      border-bottom: 0;
     }
 
     .pageList {

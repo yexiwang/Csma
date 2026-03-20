@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.sky.mapper.FamilyProfileMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        insert into family_profile
+        (user_id, name, phone, remark, status, create_time, update_time, create_user, update_user, is_deleted)
+        values
+        (#{userId}, #{name}, #{phone}, #{remark}, #{status}, #{createTime}, #{updateTime}, #{createUser}, #{updateUser}, #{isDeleted})
+    </insert>
+
+    <update id="update">
+        update family_profile
+        <set>
+            <if test="userId != null">user_id = #{userId},</if>
+            <if test="name != null">name = #{name},</if>
+            <if test="phone != null">phone = #{phone},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="updateUser != null">update_user = #{updateUser},</if>
+        </set>
+        where id = #{id}
+    </update>
+
+    <select id="pageQuery" resultType="com.sky.vo.FamilyProfileVO">
+        select fp.id,
+               fp.user_id as userId,
+               u.username,
+               fp.name,
+               fp.phone,
+               fp.remark,
+               fp.status,
+               fp.create_time as createTime,
+               fp.update_time as updateTime,
+               fp.create_user as createUser,
+               fp.update_user as updateUser,
+               (
+                   select count(1)
+                   from elderly e
+                   where e.user_id = fp.user_id
+                     and e.is_deleted = 0
+               ) as elderlyCount
+        from family_profile fp
+        left join user u on u.id = fp.user_id
+        <where>
+            fp.is_deleted = 0
+            <if test="name != null and name != ''">
+                and fp.name like concat('%', #{name}, '%')
+            </if>
+            <if test="phone != null and phone != ''">
+                and fp.phone like concat('%', #{phone}, '%')
+            </if>
+            <if test="status != null">
+                and fp.status = #{status}
+            </if>
+        </where>
+        order by fp.create_time desc, fp.id desc
+    </select>
+
+    <select id="getDetailById" resultType="com.sky.vo.FamilyProfileVO">
+        select fp.id,
+               fp.user_id as userId,
+               u.username,
+               fp.name,
+               fp.phone,
+               fp.remark,
+               fp.status,
+               fp.create_time as createTime,
+               fp.update_time as updateTime,
+               fp.create_user as createUser,
+               fp.update_user as updateUser,
+               (
+                   select count(1)
+                   from elderly e
+                   where e.user_id = fp.user_id
+                     and e.is_deleted = 0
+               ) as elderlyCount
+        from family_profile fp
+        left join user u on u.id = fp.user_id
+        where fp.id = #{id}
+          and fp.is_deleted = 0
+        limit 1
+    </select>
+
+    <select id="getById" resultType="com.sky.entity.FamilyProfile">
+        select *
+        from family_profile
+        where id = #{id}
+          and is_deleted = 0
+        limit 1
+    </select>
+
+    <select id="getByUserId" resultType="com.sky.entity.FamilyProfile">
+        select *
+        from family_profile
+        where user_id = #{userId}
+        limit 1
+    </select>
+
+    <select id="getEnabledByUserId" resultType="com.sky.entity.FamilyProfile">
+        select *
+        from family_profile
+        where user_id = #{userId}
+          and is_deleted = 0
+          and status = 1
+        limit 1
+    </select>
+
+    <select id="listEnabledOptions" resultType="com.sky.vo.FamilyProfileOptionVO">
+        select fp.id,
+               fp.user_id as userId,
+               u.username,
+               fp.name,
+               fp.phone
+        from family_profile fp
+        left join user u on u.id = fp.user_id
+        where fp.is_deleted = 0
+          and fp.status = 1
+        order by fp.name asc, fp.id desc
+    </select>
+
+    <select id="listFamilyUsers" resultType="com.sky.vo.FamilyUserOptionVO">
+        select u.id as userId,
+               u.username,
+               u.name,
+               u.phone,
+               u.status,
+               if(fp.id is null, false, true) as bound,
+               fp.id as boundFamilyProfileId,
+               fp.name as boundFamilyProfileName
+        from user u
+        left join family_profile fp
+            on fp.user_id = u.id
+           and fp.is_deleted = 0
+        where u.role = 'FAMILY'
+        order by u.create_time desc, u.id desc
+    </select>
+
+</mapper>

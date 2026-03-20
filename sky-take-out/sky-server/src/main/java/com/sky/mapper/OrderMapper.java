@@ -5,7 +5,6 @@ import com.sky.dto.GoodsSalesDTO;
 import com.sky.dto.OrdersPageQueryDTO;
 import com.sky.entity.Orders;
 import org.apache.ibatis.annotations.Mapper;
-import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
@@ -17,80 +16,74 @@ import java.util.Map;
 public interface OrderMapper {
     /**
      * 插入订单数据
-     * @param orders
+     * @param orders 订单
      */
     void insert(Orders orders);
 
     /**
      * 根据订单号查询订单
-     * @param orderNumber
+     * @param orderNumber 订单号
      */
     @Select("select * from orders where number = #{orderNumber}")
     Orders getByNumber(String orderNumber);
 
     /**
      * 修改订单信息
-     * @param orders
+     * @param orders 订单
      */
     void update(Orders orders);
 
     /**
-     * 用于替换微信支付更新数据库状态的问题
-     * @param orderStatus
-     * @param orderPaidStatus
+     * 支付成功后更新订单状态
      */
     @Update("update orders set status = #{orderStatus},pay_status = #{orderPaidStatus} ,checkout_time = #{check_out_time} " +
             "where number = #{orderNumber}")
     void updateStatus(Integer orderStatus, Integer orderPaidStatus, LocalDateTime check_out_time, String orderNumber);
 
     /**
-     * 分页条件查询并按下单时间排序
-     * @param ordersPageQueryDTO
+     * 分页查询订单
+     * @param ordersPageQueryDTO 查询参数
      */
     Page<Orders> pageQuery(OrdersPageQueryDTO ordersPageQueryDTO);
 
     /**
-     * 根据id查询订单
-     * @param id
+     * 根据ID查询订单
+     * @param id 订单ID
      */
     @Select("select * from orders where id=#{id}")
     Orders getById(Long id);
 
     /**
      * 根据状态统计订单数量
-     * @param status
+     * @param status 订单状态
      */
     @Select("select count(id) from orders where status = #{status}")
     Integer countStatus(Integer status);
 
     /**
-     * 根据订单状态和下单时间查询订单
-     * @param status
-     * @param time
+     * 统计老人关联订单数量
+     * @param elderId 老人ID
      */
-    @Select("select * from orders where status = #{status} and order_time < #{time}")
-    List<Orders> getByStatusAndTimeLT(Integer status , LocalDateTime time);
-
+    Integer countByElderId(Long elderId);
 
     /**
-     * 根据动态条件查询数据
-     * @param map
-     * @return
+     * 根据订单状态和下单时间查询订单
+     */
+    @Select("select * from orders where status = #{status} and order_time < #{time}")
+    List<Orders> getByStatusAndTimeLT(Integer status, LocalDateTime time);
+
+    /**
+     * 根据动态条件统计金额
      */
     Double sumByMap(Map map);
 
     /**
      * 根据动态条件统计订单数量
-     * @param map
      */
     Integer countByMap(Map map);
 
-
     /**
-     * 统计指定时间区间内销量排名top10
-     * @param begin
-     * @param end
-     * @return
+     * 统计指定时间区间内销量 top10
      */
     List<GoodsSalesDTO> getSalesTop10(LocalDateTime begin, LocalDateTime end);
 }

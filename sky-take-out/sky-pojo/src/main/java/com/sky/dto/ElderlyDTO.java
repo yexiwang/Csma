@@ -13,7 +13,7 @@ public class ElderlyDTO implements Serializable {
     @ApiModelProperty("老人ID")
     private Long id;
 
-    @ApiModelProperty("关联用户ID(家属或本人)")
+    @ApiModelProperty("关联的FAMILY用户ID")
     private Long userId;
 
     @ApiModelProperty("老人姓名")
@@ -31,7 +31,7 @@ public class ElderlyDTO implements Serializable {
     @ApiModelProperty("详细居住地址")
     private String address;
 
-    @ApiModelProperty("所属助餐点ID/默认助餐点ID")
+    @ApiModelProperty("所属助餐点ID")
     private Long diningPointId;
 
     @ApiModelProperty("所属网格/片区")
@@ -48,4 +48,7 @@ public class ElderlyDTO implements Serializable {
 
     @ApiModelProperty("照片")
     private String image;
+
+    @ApiModelProperty("逻辑删除标记")
+    private Integer isDeleted;
 }

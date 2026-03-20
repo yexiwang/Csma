@@ -76,6 +76,15 @@ const router = new Router({
           }
         },
         {
+          path: 'familyProfile',
+          component: () => import(/* webpackChunkName: "family-profile" */ '@/views/familyProfile/index.vue'),
+          meta: {
+            title: '家属档案管理',
+            icon: 'icon-user',
+            roles: ['ADMIN']
+          }
+        },
+        {
           path: 'setmeal',
           component: () => import(/* webpackChunkName: "shopTable" */ '@/views/setmeal/index.vue'),
           meta: {
@@ -169,7 +178,7 @@ const router = new Router({
           path: 'family-addresses',
           component: () => import(/* webpackChunkName: "family-address" */ '@/views/family-address/index.vue'),
           meta: {
-            title: '鍦板潃绠＄悊',
+            title: '家属地址管理',
             hidden: true,
             roles: ['FAMILY']
           }
@@ -178,7 +187,7 @@ const router = new Router({
           path: 'family-addresses/new',
           component: () => import(/* webpackChunkName: "family-address" */ '@/views/family-address/form.vue'),
           meta: {
-            title: '鏂板鍦板潃',
+            title: '新增家属地址',
             hidden: true,
             roles: ['FAMILY']
           }
@@ -187,7 +196,7 @@ const router = new Router({
           path: 'family-addresses/:id/edit',
           component: () => import(/* webpackChunkName: "family-address" */ '@/views/family-address/form.vue'),
           meta: {
-            title: '淇敼鍦板潃',
+            title: '编辑家属地址',
             hidden: true,
             roles: ['FAMILY']
           }
