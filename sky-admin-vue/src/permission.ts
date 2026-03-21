@@ -11,7 +11,7 @@ const VALID_ROLES = ['ADMIN', 'OPERATOR', 'VOLUNTEER', 'FAMILY']
 function getDefaultRouteByRole(role: string) {
   if (role === 'ADMIN') return '/dashboard'
   if (role === 'OPERATOR') return '/order'
-  if (role === 'VOLUNTEER') return '/volunteer-tasks'
+  if (role === 'VOLUNTEER') return '/volunteer-overview'
   if (role === 'FAMILY') return '/family-order'
   return '/login'
 }

@@ -10,6 +10,7 @@ export interface VolunteerTaskItem {
   id: number
   number: string
   status: number
+  elderName?: string
   diningPointName?: string
   consignee?: string
   phone?: string
@@ -29,6 +30,15 @@ export interface VolunteerTaskQuery {
   status?: number
 }
 
+export interface VolunteerOverview {
+  name?: string
+  status?: number
+  totalOrders?: number
+  totalHours?: number | string
+  rating?: number | string
+  level?: number
+}
+
 function unwrapResult<T>(response: { data: ApiResult<T> }) {
   const result = response.data
   if (!result || result.code !== 1) {
@@ -44,6 +54,14 @@ export const getVolunteerOrderPage = async (params: VolunteerTaskQuery): Promise
     params
   })
   return unwrapResult<VolunteerTaskPage>(response)
+}
+
+export const getVolunteerOverview = async (): Promise<VolunteerOverview> => {
+  const response = await request({
+    url: '/user/volunteer/overview',
+    method: 'get'
+  })
+  return unwrapResult<VolunteerOverview>(response)
 }
 
 export const volunteerConfirmPickup = async (id: number): Promise<void> => {

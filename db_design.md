@@ -203,6 +203,31 @@
   - `pack_amount = 0`
 - FAMILY 下单当前固定提交 `delivery_status = 0`；后端也会在 `OrdersSubmitDTO.deliveryStatus` 为空时默认补 `0`，避免因数据库非空约束导致事务回滚。
 
+### 3.10 volunteer_stats
+
+当前代码中的志愿者概览数据会使用 `volunteer_stats` 作为统计来源之一。
+
+当前实际会被前后端读取的关键字段：
+
+| 字段 | 说明 |
+| :--- | :--- |
+| `user_id` | 关联 `VOLUNTEER` 用户 |
+| `total_orders` | 累计服务单量 |
+| `total_hours` | 累计服务时长 |
+| `rating` | 综合评分 |
+| `level` | 等级 |
+
+说明：
+
+- 当前用户端概览接口为 `GET /user/volunteer/overview`。
+- 接口基于当前登录用户身份获取数据，前端不传 `volunteerId`。
+- 概览接口当前数据来源为：
+  - `user.name / user.status`
+  - `volunteer_stats.total_hours / rating / level`
+  - `max(volunteer_stats.total_orders, orders.status = 6 的已完成订单数)`
+- 之所以对 `total_orders` 做兼容，是因为当前统计表未完全随每次履约自动回写；文档和展示应按当前代码口径理解。
+- 若 `volunteer_stats` 记录缺失，当前前端会以 `0 / --` 做兜底展示，不影响任务页继续使用。
+
 ## 4. FAMILY 当前金额模型
 
 当前固定规则：

@@ -1,5 +1,7 @@
 package com.sky.service.impl;
 
+import com.sky.constant.MessageConstant;
+import com.sky.context.BaseContext;
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
 import com.sky.constant.StatusConstant;
@@ -8,10 +10,12 @@ import com.sky.dto.VolunteerPageQueryDTO;
 import com.sky.entity.User;
 import com.sky.entity.VolunteerStats;
 import com.sky.exception.BaseException;
+import com.sky.mapper.OrderMapper;
 import com.sky.mapper.VolunteerMapper;
 import com.sky.mapper.VolunteerStatsMapper;
 import com.sky.result.PageResult;
 import com.sky.service.VolunteerService;
+import com.sky.vo.VolunteerOverviewVO;
 import com.sky.vo.VolunteerVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -21,7 +25,9 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class VolunteerServiceImpl implements VolunteerService {
@@ -33,6 +39,9 @@ public class VolunteerServiceImpl implements VolunteerService {
 
     @Autowired
     private VolunteerStatsMapper volunteerStatsMapper;
+
+    @Autowired
+    private OrderMapper orderMapper;
 
     @Override
     public PageResult pageQuery(VolunteerPageQueryDTO volunteerPageQueryDTO) {
@@ -128,6 +137,35 @@ public class VolunteerServiceImpl implements VolunteerService {
         return volunteerMapper.listActiveVolunteers();
     }
 
+    @Override
+    public VolunteerOverviewVO getCurrentOverview() {
+        Long currentUserId = BaseContext.getCurrentId();
+        if (currentUserId == null) {
+            throw new BaseException(MessageConstant.USER_NOT_LOGIN);
+        }
+        if (!VOLUNTEER_ROLE.equalsIgnoreCase(BaseContext.getCurrentRole())) {
+            throw new BaseException("当前角色无权查看志愿者概览");
+        }
+
+        User volunteer = requireVolunteer(currentUserId);
+        VolunteerStats volunteerStats = volunteerStatsMapper.getByUserId(currentUserId);
+        Integer completedOrders = orderMapper.countByMap(buildCompletedOrderCountMap(currentUserId));
+
+        int statsTotalOrders = volunteerStats != null && volunteerStats.getTotalOrders() != null
+                ? volunteerStats.getTotalOrders()
+                : 0;
+        int completedOrderCount = completedOrders == null ? 0 : completedOrders;
+
+        return VolunteerOverviewVO.builder()
+                .name(volunteer.getName())
+                .status(volunteer.getStatus())
+                .totalOrders(Math.max(statsTotalOrders, completedOrderCount))
+                .totalHours(volunteerStats != null && volunteerStats.getTotalHours() != null ? volunteerStats.getTotalHours() : BigDecimal.ZERO)
+                .rating(volunteerStats == null ? null : volunteerStats.getRating())
+                .level(volunteerStats == null ? null : volunteerStats.getLevel())
+                .build();
+    }
+
     private void validateCreate(VolunteerDTO volunteerDTO) {
         if (!StringUtils.hasText(volunteerDTO.getUsername())) {
             throw new BaseException("用户名不能为空");
@@ -152,6 +190,13 @@ public class VolunteerServiceImpl implements VolunteerService {
             throw new BaseException("志愿者状态不合法");
         }
         return targetStatus;
+    }
+
+    private Map<String, Object> buildCompletedOrderCountMap(Long volunteerId) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("volunteerId", volunteerId);
+        map.put("status", 6);
+        return map;
     }
 
     private User requireVolunteer(Long id) {

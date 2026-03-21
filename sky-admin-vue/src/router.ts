@@ -158,6 +158,15 @@ const router = new Router({
           }
         },
         {
+          path: 'volunteer-overview',
+          component: () => import(/* webpackChunkName: "volunteer" */ '@/views/volunteer/overview.vue'),
+          meta: {
+            title: '个人概览',
+            icon: 'icon-user',
+            roles: ['VOLUNTEER']
+          }
+        },
+        {
           path: 'volunteer-tasks',
           component: () => import(/* webpackChunkName: "volunteer" */ '@/views/volunteer/index.vue'),
           meta: {

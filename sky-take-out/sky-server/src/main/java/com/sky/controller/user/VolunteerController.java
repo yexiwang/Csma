@@ -4,6 +4,8 @@ import com.sky.context.BaseContext;
 import com.sky.result.PageResult;
 import com.sky.result.Result;
 import com.sky.service.OrderService;
+import com.sky.service.VolunteerService;
+import com.sky.vo.VolunteerOverviewVO;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
@@ -23,12 +25,23 @@ public class VolunteerController {
     @Autowired
     private OrderService orderService;
 
+    @Autowired
+    private VolunteerService volunteerService;
+
     @GetMapping("/orders")
     @ApiOperation("分页查询当前志愿者任务")
     public Result<PageResult> page(int page, int pageSize, Integer status) {
         log.info("志愿者查询 指定命令，志愿者ID={}, role={}, page={}, pageSize={}, status={}",
                 BaseContext.getCurrentId(), BaseContext.getCurrentRole(), page, pageSize, status);
         return Result.success(orderService.pageQuery4Volunteer(page, pageSize, status));
+    }
+
+    @GetMapping("/overview")
+    @ApiOperation("查询当前志愿者个人概览")
+    public Result<VolunteerOverviewVO> overview() {
+        log.info("查询当前志愿者个人概览，志愿者ID={}, role={}",
+                BaseContext.getCurrentId(), BaseContext.getCurrentRole());
+        return Result.success(volunteerService.getCurrentOverview());
     }
 
     @PutMapping("/pickup/{id}")
