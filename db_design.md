@@ -226,6 +226,7 @@
   - `volunteer_stats.total_hours / rating / level`
   - `max(volunteer_stats.total_orders, orders.status = 6 的已完成订单数)`
 - 之所以对 `total_orders` 做兼容，是因为当前统计表未完全随每次履约自动回写；文档和展示应按当前代码口径理解。
+- 当前累计服务时长优先读取 `volunteer_stats.total_hours`；后续再完善自动回写或重算机制。
 - 若 `volunteer_stats` 记录缺失，当前前端会以 `0 / --` 做兜底展示，不影响任务页继续使用。
 
 ## 4. FAMILY 当前金额模型
