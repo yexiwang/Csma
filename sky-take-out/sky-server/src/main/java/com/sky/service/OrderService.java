@@ -3,6 +3,7 @@ package com.sky.service;
 import com.sky.dto.*;
 import com.sky.result.PageResult;
 import com.sky.vo.OrderPaymentVO;
+import com.sky.vo.OrderReviewVO;
 import com.sky.vo.OrderStatisticsVO;
 import com.sky.vo.OperatorOrderOverviewVO;
 import com.sky.vo.OrderSubmitVO;
@@ -48,6 +49,10 @@ public interface OrderService {
     void complete(Long id);
 
     void reminder(Long id);
+
+    void submitReview(OrderReviewSubmitDTO orderReviewSubmitDTO);
+
+    OrderReviewVO getReviewByOrderId(Long orderId);
 
     void dispatch(Long id, Long volunteerId);
 

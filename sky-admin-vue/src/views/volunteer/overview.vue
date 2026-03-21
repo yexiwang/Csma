@@ -10,13 +10,25 @@
           <p>查看个人服务画像、累计服务表现和当前服务状态。</p>
         </div>
 
-        <div class="overview-status">
-          <div class="status-label">
-            当前服务状态
+        <div class="overview-actions">
+          <div class="overview-status">
+            <div class="status-label">
+              当前服务状态
+            </div>
+            <el-tag :type="volunteerStatusTag" size="medium">
+              {{ volunteerStatusText }}
+            </el-tag>
           </div>
-          <el-tag :type="volunteerStatusTag" size="medium">
-            {{ volunteerStatusText }}
-          </el-tag>
+
+          <el-button
+            type="primary"
+            plain
+            icon="el-icon-download"
+            :loading="exportLoading"
+            @click="handleExport"
+          >
+            导出
+          </el-button>
         </div>
       </div>
 
@@ -49,7 +61,7 @@
 <script lang="ts">
 import { Component, Vue } from 'vue-property-decorator'
 import { UserModule } from '@/store/modules/user'
-import { getVolunteerOverview, VolunteerOverview } from '@/api/volunteer'
+import { exportVolunteerOverview, getVolunteerOverview, VolunteerOverview } from '@/api/volunteer'
 
 interface OverviewCard {
   key: string
@@ -65,6 +77,7 @@ export default class VolunteerOverviewPage extends Vue {
   private overview: VolunteerOverview = this.createDefaultOverview()
   private overviewLoading = false
   private overviewLoadFailed = false
+  private exportLoading = false
 
   created() {
     this.loadVolunteerOverview()
@@ -118,7 +131,7 @@ export default class VolunteerOverviewPage extends Vue {
         key: 'level',
         label: '等级',
         value: this.overview.level || this.overview.level === 0 ? `Lv.${this.overview.level}` : '--',
-        desc: '当前志愿者等级'
+        desc: '按累计完成订单量计算'
       }
     ]
   }
@@ -156,6 +169,45 @@ export default class VolunteerOverviewPage extends Vue {
       this.overviewLoading = false
     }
   }
+
+  private async handleExport() {
+    this.exportLoading = true
+
+    try {
+      const response = await exportVolunteerOverview()
+      const blob = response.data
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = this.resolveDownloadFileName(response.headers && response.headers['content-disposition'])
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (_error) {
+      this.$message.error('导出失败，请稍后重试')
+    } finally {
+      this.exportLoading = false
+    }
+  }
+
+  private resolveDownloadFileName(contentDisposition?: string) {
+    if (!contentDisposition) {
+      return '志愿者个人概览.xlsx'
+    }
+
+    const utf8Match = contentDisposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i)
+    if (utf8Match && utf8Match[1]) {
+      return decodeURIComponent(utf8Match[1])
+    }
+
+    const normalMatch = contentDisposition.match(/filename\s*=\s*"?([^";]+)"?/i)
+    if (normalMatch && normalMatch[1]) {
+      return decodeURIComponent(normalMatch[1])
+    }
+
+    return '志愿者个人概览.xlsx'
+  }
 }
 </script>
 
@@ -176,6 +228,13 @@ export default class VolunteerOverviewPage extends Vue {
   align-items: flex-start;
   gap: 16px;
   margin-bottom: 16px;
+}
+
+.overview-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
 }
 
 .overview-eyebrow {
@@ -263,6 +322,11 @@ export default class VolunteerOverviewPage extends Vue {
 
   .overview-header {
     flex-direction: column;
+  }
+
+  .overview-actions {
+    width: 100%;
+    align-items: stretch;
   }
 
   .overview-status {

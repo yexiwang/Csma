@@ -15,7 +15,7 @@
       </div>
     </div>
 
-    <div class="order-list" v-loading="loading">
+    <div v-loading="loading" class="order-list">
       <order-item
         v-for="order in orders"
         :key="order.id"
@@ -57,6 +57,21 @@
               @click.stop="handleReminder(order.id)"
             >
               催单
+            </el-button>
+            <el-button
+              v-if="canReview(order)"
+              size="mini"
+              type="primary"
+              @click.stop="openCreateReviewDialog(order)"
+            >
+              评价
+            </el-button>
+            <el-button
+              v-else-if="canViewReview(order)"
+              size="mini"
+              @click.stop="openViewReviewDialog(order)"
+            >
+              查看评价
             </el-button>
           </div>
         </template>
@@ -140,7 +155,9 @@
           </div>
 
           <div class="detail-section">
-            <div class="section-title">菜品明细</div>
+            <div class="section-title">
+              菜品明细
+            </div>
             <el-table
               :data="detailItems"
               border
@@ -156,8 +173,12 @@
                       class="detail-dish-image"
                     >
                     <div class="detail-dish-copy">
-                      <div class="name">{{ row.dishName || row.name || '菜品' }}</div>
-                      <div v-if="row.dishFlavor" class="flavor">{{ row.dishFlavor }}</div>
+                      <div class="name">
+                        {{ row.dishName || row.name || '菜品' }}
+                      </div>
+                      <div v-if="row.dishFlavor" class="flavor">
+                        {{ row.dishFlavor }}
+                      </div>
                     </div>
                   </div>
                 </template>
@@ -242,8 +263,108 @@
         >
           催单
         </el-button>
+        <el-button
+          v-if="detailData && canReview(detailData)"
+          type="primary"
+          @click="openCreateReviewDialog(detailData)"
+        >
+          评价
+        </el-button>
+        <el-button
+          v-else-if="detailData && canViewReview(detailData)"
+          @click="openViewReviewDialog(detailData)"
+        >
+          查看评价
+        </el-button>
         <el-button @click="detailVisible = false">
           关闭
+        </el-button>
+      </div>
+    </el-dialog>
+
+    <el-dialog
+      :title="reviewDialogTitle"
+      :visible.sync="reviewDialogVisible"
+      width="520px"
+      append-to-body
+      destroy-on-close
+      :close-on-click-modal="!reviewSubmitting"
+      :show-close="!reviewSubmitting"
+      @close="handleReviewDialogClose"
+    >
+      <div v-loading="reviewLoading" class="review-dialog">
+        <div v-if="reviewDialogOrder" class="review-order-brief">
+          <div class="review-brief-row">
+            <span class="label">订单号</span>
+            <span>{{ reviewDialogOrder.number || reviewDialogOrder.orderNumber || '--' }}</span>
+          </div>
+          <div class="review-brief-row">
+            <span class="label">服务老人</span>
+            <span>{{ getDisplayElderName(reviewDialogOrder) }}</span>
+          </div>
+        </div>
+
+        <div v-if="reviewDialogMode === 'view'" class="review-content">
+          <div v-if="reviewData" class="review-view">
+            <div class="review-score-row">
+              <span class="label">评分</span>
+              <div class="review-score-value">
+                <el-rate :value="reviewData.score" disabled />
+                <span class="review-score-text">{{ reviewData.score }} 分</span>
+              </div>
+            </div>
+            <div class="review-text-block">
+              <div class="label">
+                评价内容
+              </div>
+              <div class="review-text">
+                {{ reviewData.content || '用户未填写文字评价' }}
+              </div>
+            </div>
+            <div class="review-time">
+              评价时间：{{ formatTime(reviewData.createTime) }}
+            </div>
+          </div>
+          <el-empty
+            v-else-if="!reviewLoading"
+            description="暂无评价内容"
+          />
+        </div>
+
+        <div v-else class="review-content">
+          <div class="review-score-row">
+            <span class="label">评分</span>
+            <div class="review-score-value">
+              <el-rate v-model="reviewForm.score" />
+              <span class="review-score-text">{{ reviewForm.score }} 分</span>
+            </div>
+          </div>
+          <div class="review-text-block">
+            <div class="label">
+              文字评价
+            </div>
+            <el-input
+              v-model="reviewForm.content"
+              type="textarea"
+              :rows="4"
+              maxlength="255"
+              placeholder="可选，简要描述本次服务体验"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div slot="footer" class="review-footer">
+        <el-button :disabled="reviewSubmitting" @click="reviewDialogVisible = false">
+          {{ reviewDialogMode === 'view' ? '关闭' : '取消' }}
+        </el-button>
+        <el-button
+          v-if="reviewDialogMode === 'create'"
+          type="primary"
+          :loading="reviewSubmitting"
+          @click="submitReview"
+        >
+          提交评价
         </el-button>
       </div>
     </el-dialog>
@@ -254,13 +375,17 @@
 import { Component, Vue } from 'vue-property-decorator'
 import {
   cancelOrder,
+  getOrderReview,
   getHistoryOrders,
   getOrderDetail,
   Order,
   OrderDetail,
+  OrderReview,
+  OrderReviewSubmitParams,
   paymentOrder,
   repetitionOrder,
-  reminderOrder
+  reminderOrder,
+  submitOrderReview
 } from '@/api/order'
 import { ORDER_STATUS, getOrderStatusTag, getOrderStatusText } from '@/constants/order'
 import OrderItem from '@/components/order/orderItem.vue'
@@ -269,6 +394,8 @@ interface TabOption {
   label: string
   value: number | null
 }
+
+type ReviewDialogMode = 'create' | 'view'
 
 @Component({
   name: 'OrderHistory',
@@ -302,6 +429,13 @@ export default class OrderHistory extends Vue {
   private detailVisible = false
   private detailLoading = false
   private detailData: Order | null = null
+  private reviewDialogVisible = false
+  private reviewDialogMode: ReviewDialogMode = 'create'
+  private reviewLoading = false
+  private reviewSubmitting = false
+  private reviewDialogOrder: Order | null = null
+  private reviewData: OrderReview | null = null
+  private reviewForm: OrderReviewSubmitParams = this.createDefaultReviewForm()
 
   created() {
     this.createdOrderId = this.parseOrderId(this.$route.query.createdOrderId)
@@ -336,6 +470,18 @@ export default class OrderHistory extends Vue {
       return `自定义 ${Number(this.detailData.tablewareNumber)} 份`
     }
     return '不需要餐具'
+  }
+
+  get reviewDialogTitle() {
+    return this.reviewDialogMode === 'view' ? '查看评价' : '评价订单'
+  }
+
+  private createDefaultReviewForm(): OrderReviewSubmitParams {
+    return {
+      orderId: 0,
+      score: 5,
+      content: ''
+    }
   }
 
   private parseOrderId(value: any) {
@@ -579,6 +725,97 @@ export default class OrderHistory extends Vue {
     }
   }
 
+  private canReview(order: Order) {
+    return order.status === ORDER_STATUS.COMPLETED && !order.reviewed
+  }
+
+  private canViewReview(order: Order) {
+    return order.status === ORDER_STATUS.COMPLETED && !!order.reviewed
+  }
+
+  private openCreateReviewDialog(order: Order) {
+    this.reviewDialogMode = 'create'
+    this.reviewDialogOrder = order
+    this.reviewData = null
+    this.reviewLoading = false
+    this.reviewSubmitting = false
+    this.reviewForm = {
+      orderId: Number(order.id),
+      score: 5,
+      content: ''
+    }
+    this.reviewDialogVisible = true
+  }
+
+  private async openViewReviewDialog(order: Order) {
+    this.reviewDialogMode = 'view'
+    this.reviewDialogOrder = order
+    this.reviewData = null
+    this.reviewLoading = true
+    this.reviewSubmitting = false
+    this.reviewForm = this.createDefaultReviewForm()
+    this.reviewDialogVisible = true
+
+    try {
+      this.reviewData = await getOrderReview(Number(order.id))
+      if (!this.reviewData) {
+        this.reviewDialogVisible = false
+        await this.loadOrders()
+        await this.refreshDetailIfNeeded(Number(order.id))
+        this.$message.warning('当前订单暂无评价内容')
+      }
+    } catch (error) {
+      this.reviewDialogVisible = false
+      this.$message.error(this.resolveErrorMessage(error, '获取评价失败，请重试'))
+    } finally {
+      this.reviewLoading = false
+    }
+  }
+
+  private async submitReview() {
+    if (!this.reviewDialogOrder) {
+      return
+    }
+    if (!this.reviewForm.score || this.reviewForm.score < 1 || this.reviewForm.score > 5) {
+      this.$message.warning('请先选择 1~5 分评分')
+      return
+    }
+
+    this.reviewSubmitting = true
+    try {
+      await submitOrderReview({
+        orderId: Number(this.reviewDialogOrder.id),
+        score: this.reviewForm.score,
+        content: this.reviewForm.content ? this.reviewForm.content.trim() : ''
+      })
+      this.$message.success('评价提交成功')
+      const orderId = Number(this.reviewDialogOrder.id)
+      this.closeReviewDialog()
+      await this.loadOrders()
+      await this.refreshDetailIfNeeded(orderId)
+    } catch (error) {
+      this.$message.error(this.resolveErrorMessage(error, '提交评价失败，请重试'))
+    } finally {
+      this.reviewSubmitting = false
+    }
+  }
+
+  private handleReviewDialogClose() {
+    if (this.reviewSubmitting) {
+      return
+    }
+    this.closeReviewDialog()
+  }
+
+  private closeReviewDialog() {
+    this.reviewDialogVisible = false
+    this.reviewLoading = false
+    this.reviewSubmitting = false
+    this.reviewDialogOrder = null
+    this.reviewData = null
+    this.reviewForm = this.createDefaultReviewForm()
+  }
+
   private canReminder(status: number) {
     const remindableStatusList: number[] = [
       ORDER_STATUS.TO_BE_SCHEDULED,
@@ -764,9 +1001,77 @@ export default class OrderHistory extends Vue {
   flex-wrap: wrap;
 }
 
+.review-order-brief,
+.review-content {
+  padding: 16px;
+  border-radius: 12px;
+  background: #fff9e8;
+}
+
+.review-order-brief {
+  margin-bottom: 14px;
+}
+
+.review-brief-row,
+.review-score-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  color: #303133;
+  line-height: 1.6;
+}
+
+.review-brief-row + .review-brief-row,
+.review-text-block,
+.review-time {
+  margin-top: 12px;
+}
+
+.review-score-value {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.review-score-text,
+.review-time {
+  color: #909399;
+  font-size: 12px;
+}
+
+.review-text-block {
+  .label {
+    margin-bottom: 8px;
+    color: #909399;
+  }
+}
+
+.review-text {
+  color: #303133;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.review-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 @media (max-width: 768px) {
   .detail-summary {
     grid-template-columns: 1fr;
+  }
+
+  .review-brief-row,
+  .review-score-row,
+  .review-score-value {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
   }
 }
 </style>

@@ -64,6 +64,13 @@ export const getVolunteerOverview = async (): Promise<VolunteerOverview> => {
   return unwrapResult<VolunteerOverview>(response)
 }
 
+export const exportVolunteerOverview = () =>
+  request({
+    url: '/user/volunteer/overview/export',
+    method: 'get',
+    responseType: 'blob'
+  })
+
 export const volunteerConfirmPickup = async (id: number): Promise<void> => {
   const response = await request({
     url: `/user/volunteer/pickup/${id}`,

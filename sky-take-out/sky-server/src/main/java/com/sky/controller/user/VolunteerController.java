@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.servlet.http.HttpServletResponse;
+
 @RestController("userVolunteerController")
 @RequestMapping("/user/volunteer")
 @Slf4j
@@ -42,6 +44,14 @@ public class VolunteerController {
         log.info("查询当前志愿者个人概览，志愿者ID={}, role={}",
                 BaseContext.getCurrentId(), BaseContext.getCurrentRole());
         return Result.success(volunteerService.getCurrentOverview());
+    }
+
+    @GetMapping("/overview/export")
+    @ApiOperation("导出当前志愿者个人概览")
+    public void exportOverview(HttpServletResponse response) {
+        log.info("导出当前志愿者个人概览，志愿者ID={}, role={}",
+                BaseContext.getCurrentId(), BaseContext.getCurrentRole());
+        volunteerService.exportCurrentOverview(response);
     }
 
     @PutMapping("/pickup/{id}")

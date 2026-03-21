@@ -10,6 +10,7 @@ import com.sky.constant.StatusConstant;
 import com.sky.context.BaseContext;
 import com.sky.dto.OperatorAssignVolunteerDTO;
 import com.sky.dto.OperatorOrderBoardQueryDTO;
+import com.sky.dto.OrderReviewSubmitDTO;
 import com.sky.dto.OrdersCancelDTO;
 import com.sky.dto.OrdersConfirmDTO;
 import com.sky.dto.OrdersPageQueryDTO;
@@ -20,10 +21,12 @@ import com.sky.entity.AddressBook;
 import com.sky.entity.Dish;
 import com.sky.entity.Elderly;
 import com.sky.entity.OrderDetail;
+import com.sky.entity.OrderReview;
 import com.sky.entity.Orders;
 import com.sky.entity.ShoppingCart;
 import com.sky.entity.User;
 import com.sky.entity.DiningPoint;
+import com.sky.entity.VolunteerStats;
 import com.sky.exception.AddressBookBusinessException;
 import com.sky.exception.OrderBusinessException;
 import com.sky.exception.ShoppingCartBusinessException;
@@ -33,14 +36,18 @@ import com.sky.mapper.DishMapper;
 import com.sky.mapper.ElderlyMapper;
 import com.sky.mapper.OrderDetailMapper;
 import com.sky.mapper.OrderMapper;
+import com.sky.mapper.OrderReviewMapper;
 import com.sky.mapper.ShoppingCartMapper;
 import com.sky.mapper.UserMapper;
+import com.sky.mapper.VolunteerStatsMapper;
 import com.sky.result.PageResult;
 import com.sky.service.OrderService;
 import com.sky.service.support.FamilyCheckoutCalculator;
+import com.sky.service.support.VolunteerLevelSupport;
 import com.sky.utils.HttpClientUtil;
 import com.sky.utils.WeChatPayUtil;
 import com.sky.vo.OrderPaymentVO;
+import com.sky.vo.OrderReviewVO;
 import com.sky.vo.OrderStatisticsVO;
 import com.sky.vo.OperatorOrderOverviewVO;
 import com.sky.vo.OrderSubmitVO;
@@ -51,9 +58,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -89,11 +98,15 @@ public class OrderServiceImpl implements OrderService {
     @Autowired
     private OrderDetailMapper orderDetailMapper;
     @Autowired
+    private OrderReviewMapper orderReviewMapper;
+    @Autowired
     private AddressBookMapper addressBookMapper;
     @Autowired
     private ShoppingCartMapper shoppingCartMapper;
     @Autowired
     private UserMapper userMapper;
+    @Autowired
+    private VolunteerStatsMapper volunteerStatsMapper;
     @Autowired
     private ElderlyMapper elderlyMapper;
     @Autowired
@@ -238,7 +251,7 @@ public class OrderServiceImpl implements OrderService {
     public void paySuccess(String outTradeNo) {
         Orders ordersDB = orderMapper.getByNumber(outTradeNo);
         if (ordersDB == null) {
-            log.warn("ignore paySuccess because order does not exist, orderNumber={}", outTradeNo);
+            log.warn("忽略paySuccess，因为订单不存在, orderNumber={}", outTradeNo);
             return;
         }
         if (!Orders.PENDING_PAYMENT.equals(ordersDB.getStatus())) {
@@ -252,7 +265,7 @@ public class OrderServiceImpl implements OrderService {
             return;
         }
         LocalDateTime checkoutTime = LocalDateTime.now();
-        log.info("paySuccess update order to to-be-scheduled, orderNumber={}, orderId={}", outTradeNo, ordersDB.getId());
+        log.info("模拟paySuccess，更新订单状态为待配送, orderNumber={}, orderId={}", outTradeNo, ordersDB.getId());
         orderMapper.updateStatus(Orders.TO_BE_SCHEDULED, Orders.PAID, checkoutTime, outTradeNo);
         notifyOrderPaid(ordersDB.getId(), outTradeNo);
     }
@@ -274,7 +287,9 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public OrderVO details(Long id) {
         Orders orders = getAccessibleOrder(id);
-        return buildOrderVO(orders);
+        OrderVO orderVO = buildOrderVO(orders);
+        attachReviewedFlag(orderVO);
+        return orderVO;
     }
 
     @Override
@@ -292,6 +307,57 @@ public class OrderServiceImpl implements OrderService {
         orders.setCancelReason("用户取消");
         orders.setCancelTime(LocalDateTime.now());
         orderMapper.update(orders);
+    }
+
+    @Override
+    @Transactional
+    public void submitReview(OrderReviewSubmitDTO orderReviewSubmitDTO) {
+        requireRole(ROLE_FAMILY);
+        validateReviewSubmitDTO(orderReviewSubmitDTO);
+
+        Orders orders = getAccessibleOrder(orderReviewSubmitDTO.getOrderId());
+        assertStatus(orders, Orders.COMPLETED);
+
+        if (orderReviewMapper.getByOrderId(orders.getId()) != null) {
+            throw new OrderBusinessException("当前订单已评价");
+        }
+
+        User volunteer = requireReviewedVolunteer(orders);
+        LocalDateTime now = LocalDateTime.now();
+        OrderReview orderReview = OrderReview.builder()
+                .orderId(orders.getId())
+                .volunteerUserId(volunteer.getId())
+                .familyUserId(requireCurrentUserId())
+                .score(orderReviewSubmitDTO.getScore())
+                .content(normalizeReviewContent(orderReviewSubmitDTO.getContent()))
+                .createTime(now)
+                .updateTime(now)
+                .isDeleted(0)
+                .build();
+
+        try {
+            orderReviewMapper.insert(orderReview);
+        } catch (DuplicateKeyException duplicateKeyException) {
+            throw new OrderBusinessException("当前订单已评价");
+        }
+
+        refreshVolunteerRating(volunteer.getId());
+    }
+
+    @Override
+    public OrderReviewVO getReviewByOrderId(Long orderId) {
+        requireRole(ROLE_FAMILY);
+        Orders orders = getAccessibleOrder(orderId);
+        OrderReview orderReview = orderReviewMapper.getByOrderId(orders.getId());
+        if (orderReview == null) {
+            return null;
+        }
+        return OrderReviewVO.builder()
+                .orderId(orderReview.getOrderId())
+                .score(orderReview.getScore())
+                .content(orderReview.getContent())
+                .createTime(orderReview.getCreateTime())
+                .build();
     }
 
     @Override
@@ -587,7 +653,9 @@ public class OrderServiceImpl implements OrderService {
 
         PageHelper.startPage(pageNum, pageSize);
         Page<Orders> page = orderMapper.pageQuery(ordersPageQueryDTO);
-        return new PageResult(page.getTotal(), getOrderVOList(page.getResult()));
+        List<OrderVO> orderVOList = getOrderVOList(page.getResult());
+        attachReviewedFlags(orderVOList);
+        return new PageResult(page.getTotal(), orderVOList);
     }
 
     private void applyQueryScope(OrdersPageQueryDTO ordersPageQueryDTO) {
@@ -697,6 +765,115 @@ public class OrderServiceImpl implements OrderService {
                 .deliveryTime(LocalDateTime.now())
                 .build();
         orderMapper.update(orders);
+        refreshVolunteerCompletionStats(ordersDB.getVolunteerId());
+    }
+
+    private void validateReviewSubmitDTO(OrderReviewSubmitDTO orderReviewSubmitDTO) {
+        if (orderReviewSubmitDTO == null || orderReviewSubmitDTO.getOrderId() == null) {
+            throw new OrderBusinessException("订单ID不能为空");
+        }
+        Integer score = orderReviewSubmitDTO.getScore();
+        if (score == null || score < 1 || score > 5) {
+            throw new OrderBusinessException("评分只允许 1~5 分");
+        }
+    }
+
+    private User requireReviewedVolunteer(Orders orders) {
+        if (orders.getVolunteerId() == null) {
+            throw new OrderBusinessException("当前订单未分配志愿者，无法评价");
+        }
+        User volunteer = userMapper.getById(orders.getVolunteerId());
+        if (volunteer == null || !ROLE_VOLUNTEER.equalsIgnoreCase(normalizeRole(volunteer.getRole()))) {
+            throw new OrderBusinessException("当前订单关联的志愿者不存在，无法评价");
+        }
+        return volunteer;
+    }
+
+    private String normalizeReviewContent(String content) {
+        if (!StringUtils.hasText(content)) {
+            return null;
+        }
+        String trimmed = content.trim();
+        if (trimmed.length() > 255) {
+            throw new OrderBusinessException("评价内容不能超过255个字符");
+        }
+        return trimmed;
+    }
+
+    private void refreshVolunteerRating(Long volunteerUserId) {
+        BigDecimal averageScore = orderReviewMapper.avgScoreByVolunteerUserId(volunteerUserId);
+        BigDecimal normalizedRating = averageScore == null ? null : averageScore.setScale(1, RoundingMode.HALF_UP);
+        LocalDateTime now = LocalDateTime.now();
+        int completedOrderCount = getCompletedOrderCount(volunteerUserId);
+        int calculatedLevel = VolunteerLevelSupport.calculateLevel(completedOrderCount);
+
+        VolunteerStats volunteerStats = volunteerStatsMapper.getByUserId(volunteerUserId);
+        if (volunteerStats == null) {
+            volunteerStatsMapper.insert(VolunteerStats.builder()
+                    .userId(volunteerUserId)
+                    .totalOrders(completedOrderCount)
+                    .totalHours(new BigDecimal("0.0"))
+                    .rating(normalizedRating)
+                    .level(calculatedLevel)
+                    .createTime(now)
+                    .updateTime(now)
+                    .build());
+            return;
+        }
+
+        volunteerStatsMapper.update(VolunteerStats.builder()
+                .id(volunteerStats.getId())
+                .totalOrders(completedOrderCount)
+                .rating(normalizedRating)
+                .level(calculatedLevel)
+                .updateTime(now)
+                .build());
+    }
+
+    private void refreshVolunteerCompletionStats(Long volunteerUserId) {
+        if (volunteerUserId == null) {
+            return;
+        }
+
+        int completedOrderCount = getCompletedOrderCount(volunteerUserId);
+        int calculatedLevel = VolunteerLevelSupport.calculateLevel(completedOrderCount);
+        LocalDateTime now = LocalDateTime.now();
+
+        VolunteerStats volunteerStats = volunteerStatsMapper.getByUserId(volunteerUserId);
+        if (volunteerStats == null) {
+            volunteerStatsMapper.insert(VolunteerStats.builder()
+                    .userId(volunteerUserId)
+                    .totalOrders(completedOrderCount)
+                    .totalHours(new BigDecimal("0.0"))
+                    .rating(null)
+                    .level(calculatedLevel)
+                    .createTime(now)
+                    .updateTime(now)
+                    .build());
+            return;
+        }
+
+        volunteerStatsMapper.update(VolunteerStats.builder()
+                .id(volunteerStats.getId())
+                .totalOrders(completedOrderCount)
+                .level(calculatedLevel)
+                .updateTime(now)
+                .build());
+    }
+
+    private int getCompletedOrderCount(Long volunteerUserId) {
+        if (volunteerUserId == null) {
+            return 0;
+        }
+        Integer completedOrders = orderMapper.countByMap(buildCompletedOrderCountMap(volunteerUserId));
+        return completedOrders == null ? 0 : completedOrders;
+    }
+
+    private Map<String, Object> buildCompletedOrderCountMap(Long volunteerUserId) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("volunteerId", volunteerUserId);
+        map.put("status", Orders.COMPLETED);
+        return map;
     }
 
     private void assertStatus(Orders orders, Integer expectedStatus) {
@@ -786,6 +963,43 @@ public class OrderServiceImpl implements OrderService {
         }
         orderVO.setHandoverStatus(buildHandoverStatus(orders));
         return orderVO;
+    }
+
+    private void attachReviewedFlags(List<OrderVO> orderVOList) {
+        if (!ROLE_FAMILY.equals(normalizeRole(BaseContext.getCurrentRole())) || CollectionUtils.isEmpty(orderVOList)) {
+            return;
+        }
+
+        List<Long> completedOrderIds = orderVOList.stream()
+                .filter(orderVO -> orderVO.getId() != null && Orders.COMPLETED.equals(orderVO.getStatus()))
+                .map(OrderVO::getId)
+                .collect(Collectors.toList());
+        if (CollectionUtils.isEmpty(completedOrderIds)) {
+            return;
+        }
+
+        List<OrderReview> orderReviewList = orderReviewMapper.listByOrderIds(completedOrderIds);
+        if (CollectionUtils.isEmpty(orderReviewList)) {
+            return;
+        }
+
+        Map<Long, Boolean> reviewedMap = orderReviewList.stream()
+                .filter(orderReview -> orderReview.getOrderId() != null)
+                .collect(Collectors.toMap(OrderReview::getOrderId, orderReview -> Boolean.TRUE, (left, right) -> left));
+
+        for (OrderVO orderVO : orderVOList) {
+            if (orderVO.getId() != null) {
+                orderVO.setReviewed(Boolean.TRUE.equals(reviewedMap.get(orderVO.getId())));
+            }
+        }
+    }
+
+    private void attachReviewedFlag(OrderVO orderVO) {
+        if (orderVO == null || !ROLE_FAMILY.equals(normalizeRole(BaseContext.getCurrentRole()))
+                || orderVO.getId() == null || !Orders.COMPLETED.equals(orderVO.getStatus())) {
+            return;
+        }
+        orderVO.setReviewed(orderReviewMapper.getByOrderId(orderVO.getId()) != null);
     }
 
     private String buildHandoverStatus(Orders orders) {

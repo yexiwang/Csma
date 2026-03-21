@@ -55,8 +55,22 @@ export interface Order {
   address?: string
   consignee?: string
   phone?: string
+  reviewed?: boolean
   orderDetails?: OrderDetail[]
   orderDetailList?: OrderDetail[]
+}
+
+export interface OrderReview {
+  orderId: number
+  score: number
+  content?: string
+  createTime?: string
+}
+
+export interface OrderReviewSubmitParams {
+  orderId: number
+  score: number
+  content?: string
 }
 
 export interface OrderSubmitParams {
@@ -98,6 +112,11 @@ const ensureBusinessSuccess = (response: any, fallbackMessage: string) => {
   const error: any = new Error((response && response.data && response.data.msg) || fallbackMessage)
   error.response = response
   throw error
+}
+
+const unwrapBusinessData = <T>(response: any, fallbackMessage: string): T => {
+  const safeResponse = ensureBusinessSuccess(response, fallbackMessage)
+  return safeResponse && safeResponse.data ? safeResponse.data.data : undefined
 }
 
 export const submitOrder = (data: OrderSubmitParams) =>
@@ -144,3 +163,16 @@ export const reminderOrder = (id: number) =>
     url: `/user/order/reminder/${id}`,
     method: 'get'
   })
+
+export const submitOrderReview = (data: OrderReviewSubmitParams) =>
+  request({
+    url: '/user/order/review',
+    method: 'post',
+    data
+  }).then((response) => ensureBusinessSuccess(response, '提交评价失败，请稍后重试'))
+
+export const getOrderReview = (orderId: number): Promise<OrderReview | null> =>
+  request({
+    url: `/user/order/review/${orderId}`,
+    method: 'get'
+  }).then((response) => unwrapBusinessData<OrderReview | null>(response, '获取评价失败，请稍后重试'))

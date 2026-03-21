@@ -6,6 +6,7 @@ import com.sky.result.PageResult;
 import com.sky.vo.VolunteerOverviewVO;
 import com.sky.vo.VolunteerVO;
 
+import javax.servlet.http.HttpServletResponse;
 import java.util.List;
 
 public interface VolunteerService {
@@ -23,4 +24,6 @@ public interface VolunteerService {
     List<VolunteerVO> listActiveVolunteers();
 
     VolunteerOverviewVO getCurrentOverview();
+
+    void exportCurrentOverview(HttpServletResponse response);
 }

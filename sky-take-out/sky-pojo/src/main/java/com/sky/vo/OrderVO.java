@@ -35,4 +35,6 @@ public class OrderVO extends Orders implements Serializable {
     private String elderSpecialNeeds;
 
     private String handoverStatus;
+
+    private Boolean reviewed;
 }

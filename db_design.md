@@ -203,7 +203,34 @@
   - `pack_amount = 0`
 - FAMILY 下单当前固定提交 `delivery_status = 0`；后端也会在 `OrdersSubmitDTO.deliveryStatus` 为空时默认补 `0`，避免因数据库非空约束导致事务回滚。
 
-### 3.10 volunteer_stats
+### 3.10 order_review
+
+当前代码已经新增订单评价表，用于承接 FAMILY 对已完成订单的真实评分数据。
+
+当前实际关键字段：
+
+| 字段 | 说明 |
+| :--- | :--- |
+| `order_id` | 订单 ID |
+| `volunteer_user_id` | 志愿者用户 ID |
+| `family_user_id` | 家属用户 ID |
+| `score` | 评分，当前只允许 `1~5` |
+| `content` | 可选文字评价 |
+| `create_time` | 创建时间 |
+| `update_time` | 更新时间 |
+| `is_deleted` | 逻辑删除标记 |
+
+说明：
+
+- 当前通过 `uk_order_id(order_id)` 保证一单一评。
+- 当前不会为“未主动评分”的已完成订单生成空评价记录。
+- 因此志愿者综合评分只统计真实存在的评价记录，不会把未评价订单计入分母。
+- 本表依赖增量 SQL `order_review_rating_update.sql` 创建；若目标环境未执行该 SQL，历史订单页在查询 `reviewed` 状态时会直接报错。
+- 当前用户端评价接口为：
+  - `POST /user/order/review`
+  - `GET /user/order/review/{orderId}`
+
+### 3.11 volunteer_stats
 
 当前代码中的志愿者概览数据会使用 `volunteer_stats` 作为统计来源之一。
 
@@ -223,10 +250,32 @@
 - 接口基于当前登录用户身份获取数据，前端不传 `volunteerId`。
 - 概览接口当前数据来源为：
   - `user.name / user.status`
-  - `volunteer_stats.total_hours / rating / level`
+  - `volunteer_stats.total_hours`
+  - `order_review` 聚合后的评分结果回写到 `volunteer_stats.rating`
   - `max(volunteer_stats.total_orders, orders.status = 6 的已完成订单数)`
-- 之所以对 `total_orders` 做兼容，是因为当前统计表未完全随每次履约自动回写；文档和展示应按当前代码口径理解。
+- 当前 `total_orders / level` 主回写发生在订单完成后：
+  - 订单进入 `status = 6`
+  - 重算该志愿者已完成订单数并回写 `volunteer_stats.total_orders`
+  - 按累计完成单量规则回写 `volunteer_stats.level`
+- 当前 `volunteer_stats.level` 仍保留为持久化结果字段，不做删字段处理：
+  - 新建志愿者时初始化为 `Level 1`
+  - 订单完成时校正
+  - 评分刷新时也会顺带校正，避免 `rating` 更新后统计行仍是旧等级
+- 概览查询仍保留兜底口径：
+  - `effectiveTotalOrders = max(volunteer_stats.total_orders, orders.status = 6 的已完成订单数)`
+  - `level = 按 effectiveTotalOrders 套用固定等级规则`
 - 当前累计服务时长优先读取 `volunteer_stats.total_hours`；后续再完善自动回写或重算机制。
+- 当前等级规则固定为：
+  - `Level 1：0 ~ 9 单`
+  - `Level 2：10 ~ 29 单`
+  - `Level 3：30 ~ 59 单`
+  - `Level 4：60 ~ 99 单`
+  - `Level 5：100 单及以上`
+- 当前综合评分计算规则为：
+  - 仅统计 `order_review` 中真实存在的评价记录
+  - `rating = avg(score)`
+  - Java 侧保留 1 位小数
+- 当前历史默认 `5.0` 已清空，且新建志愿者不再写入初始化假评分。
 - 若 `volunteer_stats` 记录缺失，当前前端会以 `0 / --` 做兜底展示，不影响任务页继续使用。
 
 ## 4. FAMILY 当前金额模型

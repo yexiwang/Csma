@@ -1,11 +1,13 @@
 package com.sky.controller.user;
 
+import com.sky.dto.OrderReviewSubmitDTO;
 import com.sky.dto.OrdersPaymentDTO;
 import com.sky.dto.OrdersSubmitDTO;
 import com.sky.result.PageResult;
 import com.sky.result.Result;
 import com.sky.service.OrderService;
 import com.sky.vo.OrderPaymentVO;
+import com.sky.vo.OrderReviewVO;
 import com.sky.vo.OrderSubmitVO;
 import com.sky.vo.OrderVO;
 import io.swagger.annotations.Api;
@@ -102,6 +104,27 @@ public class OrderController {
         log.info("用户取消订单，订单id为：{}", id);
         orderService.userCancelById(id);
         return Result.success();
+    }
+
+    /**
+     * 提交订单评价
+     */
+    @PostMapping("/review")
+    @ApiOperation("提交订单评价")
+    public Result submitReview(@RequestBody OrderReviewSubmitDTO orderReviewSubmitDTO) {
+        log.info("提交订单评价：{}", orderReviewSubmitDTO);
+        orderService.submitReview(orderReviewSubmitDTO);
+        return Result.success();
+    }
+
+    /**
+     * 查询订单评价
+     */
+    @GetMapping("/review/{orderId}")
+    @ApiOperation("查询订单评价")
+    public Result<OrderReviewVO> getReview(@PathVariable Long orderId) {
+        log.info("查询订单评价，orderId={}", orderId);
+        return Result.success(orderService.getReviewByOrderId(orderId));
     }
 
     /**

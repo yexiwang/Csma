@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.sky.mapper.OrderReviewMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        insert into order_review
+        (order_id, volunteer_user_id, family_user_id, score, content, create_time, update_time, is_deleted)
+        values
+        (#{orderId}, #{volunteerUserId}, #{familyUserId}, #{score}, #{content}, #{createTime}, #{updateTime}, #{isDeleted})
+    </insert>
+
+    <select id="getByOrderId" resultType="com.sky.entity.OrderReview">
+        select *
+        from order_review
+        where order_id = #{orderId}
+          and is_deleted = 0
+        limit 1
+    </select>
+
+    <select id="listByOrderIds" resultType="com.sky.entity.OrderReview">
+        select *
+        from order_review
+        where is_deleted = 0
+          and order_id in
+          <foreach collection="list" item="orderId" open="(" separator="," close=")">
+              #{orderId}
+          </foreach>
+    </select>
+
+    <select id="avgScoreByVolunteerUserId" resultType="java.math.BigDecimal">
+        select avg(score)
+        from order_review
+        where volunteer_user_id = #{volunteerUserId}
+          and is_deleted = 0
+    </select>
+
+</mapper>
