@@ -187,11 +187,6 @@ export default class extends Vue {
       this.getStatus()
     }
   }
-  created() {
-    if (this.canAccessShopStatus) {
-      this.webSocket()
-    }
-  }
   onload() {
   }
   destroyed() {

@@ -48,9 +48,9 @@ public class DiningPointController {
 
     @GetMapping("/page")
     @ApiOperation("助餐点分页查询")
-    public Result<PageResult> page(int page, int pageSize, String name) {
-        log.info("助餐点分页查询: page={}, pageSize={}, name={}", page, pageSize, name);
-        Page<DiningPoint> pageResult = diningPointService.pageQuery(page, pageSize, name);
+    public Result<PageResult> page(int page, int pageSize, String name, Integer status) {
+        log.info("助餐点分页查询: page={}, pageSize={}, name={}, status={}", page, pageSize, name, status);
+        Page<DiningPoint> pageResult = diningPointService.pageQuery(page, pageSize, name, status);
         return Result.success(new PageResult(pageResult.getTotal(), pageResult.getResult()));
     }
 

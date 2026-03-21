@@ -76,6 +76,9 @@
             <if test="name != null and name != ''">
                 and e.name like concat('%', #{name}, '%')
             </if>
+            <if test="diningPointId != null">
+                and e.dining_point_id = #{diningPointId}
+            </if>
             <if test="userId != null">
                 and e.user_id = #{userId}
             </if>
@@ -93,6 +96,9 @@
             is_deleted = 0
             <if test="name != null and name != ''">
                 and name like concat('%', #{name}, '%')
+            </if>
+            <if test="diningPointId != null">
+                and dining_point_id = #{diningPointId}
             </if>
             <if test="userId != null">
                 and user_id = #{userId}

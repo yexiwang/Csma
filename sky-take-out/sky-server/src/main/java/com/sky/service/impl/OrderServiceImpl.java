@@ -72,6 +72,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -88,10 +89,15 @@ public class OrderServiceImpl implements OrderService {
     private static final String VIEW_MEAL_READY = "MEAL_READY";
     private static final String VIEW_DELIVERING = "DELIVERING";
     private static final String VIEW_COMPLETED = "COMPLETED";
+    private static final int NOTIFICATION_TYPE_NEW_ORDER = 1;
+    private static final int NOTIFICATION_TYPE_REMINDER = 2;
+    private static final long REMINDER_THROTTLE_MILLIS = 60_000L;
     private static final String HANDOVER_PENDING_PREPARE = "待出餐";
     private static final String HANDOVER_PENDING_PICKUP = "待交接";
     private static final String HANDOVER_IN_DELIVERY = "已取餐";
     private static final String HANDOVER_UNASSIGNED = "未分配志愿者";
+
+    private final Map<Long, Long> reminderThrottleMap = new ConcurrentHashMap<>();
 
     @Autowired
     private OrderMapper orderMapper;
@@ -267,7 +273,7 @@ public class OrderServiceImpl implements OrderService {
         LocalDateTime checkoutTime = LocalDateTime.now();
         log.info("模拟paySuccess，更新订单状态为待配送, orderNumber={}, orderId={}", outTradeNo, ordersDB.getId());
         orderMapper.updateStatus(Orders.TO_BE_SCHEDULED, Orders.PAID, checkoutTime, outTradeNo);
-        notifyOrderPaid(ordersDB.getId(), outTradeNo);
+        notifyOrderPaid(ordersDB);
     }
 
     @Override
@@ -577,22 +583,57 @@ public class OrderServiceImpl implements OrderService {
     public void reminder(Long id) {
         requireRole(ROLE_FAMILY);
         Orders ordersDB = getAccessibleOrder(id);
+        if (ordersDB != null) {
+            validateRemindableStatus(ordersDB);
+            Long diningPointId = requireOrderDiningPointId(ordersDB);
+            checkReminderThrottle(ordersDB.getId());
+            webSocketServer.sendToOperatorsByDiningPoint(diningPointId, buildOperatorNotificationMessage(
+                    NOTIFICATION_TYPE_REMINDER,
+                    ordersDB,
+                    "订单号：" + ordersDB.getNumber() + " 已发起催单，请尽快处理"
+            ));
+            return;
+        }
 
         Map<String, Object> map = new HashMap<>();
         map.put("type", 2);
         map.put("orderId", ordersDB.getId());
         map.put("content", "订单号：" + ordersDB.getNumber());
         String json = JSON.toJSONString(map);
-        webSocketServer.sendToAllClient(json);
+        log.warn("忽略遗留催单广播分支, orderId={}", ordersDB.getId());
     }
 
     private void notifyOrderPaid(Long orderId, String orderNumber) {
+        if (orderId != null) {
+            Orders ordersDB = orderMapper.getById(orderId);
+            if (ordersDB != null) {
+                notifyOrderPaid(ordersDB);
+                return;
+            }
+            log.warn("忽略来单提醒，因为订单不存在, orderId={}, orderNumber={}", orderId, orderNumber);
+            return;
+        }
         Map<String, Object> map = new HashMap<>();
         map.put("type", 1);
         map.put("orderId", orderId);
         map.put("content", "订单号：" + orderNumber);
         String json = JSON.toJSONString(map);
-        webSocketServer.sendToAllClient(json);
+        log.warn("忽略遗留来单广播分支, orderId={}, orderNumber={}", orderId, orderNumber);
+    }
+
+    private void notifyOrderPaid(Orders ordersDB) {
+        Long diningPointId = ordersDB.getDiningPointId();
+        if (diningPointId == null) {
+            log.warn("忽略来单提醒，因为订单未关联助餐点, orderId={}, orderNumber={}",
+                    ordersDB.getId(), ordersDB.getNumber());
+            return;
+        }
+
+        webSocketServer.sendToOperatorsByDiningPoint(diningPointId, buildOperatorNotificationMessage(
+                NOTIFICATION_TYPE_NEW_ORDER,
+                ordersDB,
+                "订单号：" + ordersDB.getNumber() + "，有新订单待处理"
+        ));
     }
 
     private OrdersPageQueryDTO buildOperatorBoardQuery(OperatorOrderBoardQueryDTO queryDTO) {
@@ -766,6 +807,54 @@ public class OrderServiceImpl implements OrderService {
                 .build();
         orderMapper.update(orders);
         refreshVolunteerCompletionStats(ordersDB.getVolunteerId());
+    }
+
+    private void validateRemindableStatus(Orders ordersDB) {
+        Integer status = ordersDB.getStatus();
+        if (!Orders.TO_BE_SCHEDULED.equals(status)
+                && !Orders.CONFIRMED.equals(status)
+                && !Orders.MEAL_READY.equals(status)
+                && !Orders.DELIVERY_IN_PROGRESS.equals(status)) {
+            throw new OrderBusinessException("当前订单状态不支持催单");
+        }
+    }
+
+    private Long requireOrderDiningPointId(Orders ordersDB) {
+        if (ordersDB.getDiningPointId() != null) {
+            return ordersDB.getDiningPointId();
+        }
+        DiningPoint diningPoint = resolveDiningPointForExistingOrder(ordersDB);
+        if (diningPoint != null && diningPoint.getId() != null) {
+            return diningPoint.getId();
+        }
+        throw new OrderBusinessException("当前订单未关联助餐点，无法发送提醒");
+    }
+
+    private void checkReminderThrottle(Long orderId) {
+        synchronized (reminderThrottleMap) {
+            long now = System.currentTimeMillis();
+            Long lastReminderTime = reminderThrottleMap.get(orderId);
+            if (lastReminderTime != null && now - lastReminderTime < REMINDER_THROTTLE_MILLIS) {
+                throw new OrderBusinessException("请勿频繁催单，60秒后再试");
+            }
+            reminderThrottleMap.put(orderId, now);
+        }
+    }
+
+    private String buildOperatorNotificationMessage(int type, Orders ordersDB, String content) {
+        Long diningPointId = ordersDB.getDiningPointId();
+        if (diningPointId == null) {
+            DiningPoint diningPoint = resolveDiningPointForExistingOrder(ordersDB);
+            diningPointId = diningPoint == null ? null : diningPoint.getId();
+        }
+        Map<String, Object> map = new HashMap<>();
+        map.put("type", type);
+        map.put("orderId", ordersDB.getId());
+        map.put("orderNumber", ordersDB.getNumber());
+        map.put("diningPointId", diningPointId);
+        map.put("content", content);
+        map.put("timestamp", LocalDateTime.now().toString());
+        return JSON.toJSONString(map);
     }
 
     private void validateReviewSubmitDTO(OrderReviewSubmitDTO orderReviewSubmitDTO) {

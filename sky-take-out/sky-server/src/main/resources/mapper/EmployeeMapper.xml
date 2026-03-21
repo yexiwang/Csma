@@ -8,6 +8,12 @@
             <if test="name != null and name != ''">
                 and name like concat('%', #{name}, '%')
             </if>
+            <if test="role != null and role != ''">
+                and role = #{role}
+            </if>
+            <if test="diningPointId != null">
+                and dining_point_id = #{diningPointId}
+            </if>
         </where>
         order by create_time desc
     </select>

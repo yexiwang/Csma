@@ -1,15 +1,26 @@
 <template>
   <div class="operator-order-page">
+    <audio ref="newOrderAudio" hidden preload="auto">
+      <source src="./../../../assets/preview.mp3" type="audio/mp3">
+    </audio>
+    <audio ref="reminderAudio" hidden preload="auto">
+      <source src="./../../../assets/reminder.mp3" type="audio/mp3">
+    </audio>
+
     <div class="summary-grid">
       <el-card
         v-for="card in summaryCards"
         :key="card.key"
         shadow="never"
-        :class="['summary-card', { active: currentView === card.view }]"
-        @click.native="changeView(card.view)"
+        :class="['summary-card', { active: currentView === card.value }]"
+        @click.native="changeView(card.value)"
       >
-        <div class="summary-label">{{ card.label }}</div>
-        <div class="summary-value">{{ overview[card.key] || 0 }}</div>
+        <div class="summary-label">
+          {{ card.label }}
+        </div>
+        <div class="summary-value">
+          {{ overview[card.key] || 0 }}
+        </div>
       </el-card>
     </div>
 
@@ -17,7 +28,7 @@
       <div class="panel-header">
         <div class="title-wrap">
           <h2>{{ currentViewLabel }}</h2>
-          <p>仅展示当前助餐点订单，按状态推进制作与配送协同。</p>
+          <p>仅展示当前助餐点订单，按状态推进制作、交接和配送协同。</p>
         </div>
         <div class="tabs">
           <div
@@ -58,8 +69,12 @@
           style="width: 320px"
           @change="handleQuery"
         />
-        <el-button type="primary" @click="handleQuery">查询</el-button>
-        <el-button @click="resetQuery">重置</el-button>
+        <el-button type="primary" @click="handleQuery">
+          查询
+        </el-button>
+        <el-button @click="resetQuery">
+          重置
+        </el-button>
       </div>
 
       <el-row v-loading="loading" :gutter="20">
@@ -74,8 +89,12 @@
           <el-card shadow="hover" class="order-card">
             <div class="card-head">
               <div>
-                <div class="order-number">订单号 {{ item.number }}</div>
-                <div class="elder-line">{{ getDisplayElderName(item) }}</div>
+                <div class="order-number">
+                  订单号：{{ item.number }}
+                </div>
+                <div class="elder-line">
+                  {{ getDisplayElderName(item) }}
+                </div>
               </div>
               <div class="tag-group">
                 <el-tag :type="getOrderStatusTag(item.status)" size="mini">
@@ -111,7 +130,9 @@
             </div>
 
             <div class="card-actions">
-              <el-button type="text" @click="openDetail(item.id)">查看详情</el-button>
+              <el-button type="text" @click="openDetail(item.id)">
+                查看详情
+              </el-button>
               <el-button
                 v-if="canStartPreparing(item)"
                 type="text"
@@ -191,7 +212,7 @@
         <el-table-column label="状态" width="100">
           <template slot-scope="scope">
             <el-tag :type="scope.row.status === 1 ? 'success' : 'info'" size="mini">
-              {{ scope.row.status === 1 ? '启用' : '禁用' }}
+              {{ scope.row.status === 1 ? '启用' : '停用' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -199,7 +220,9 @@
         <el-table-column prop="currentTaskCount" label="当前任务数" width="110" />
       </el-table>
       <div slot="footer">
-        <el-button @click="assignVisible = false">取消</el-button>
+        <el-button @click="assignVisible = false">
+          取消
+        </el-button>
         <el-button type="primary" :loading="assignSubmitting" @click="submitAssign">
           确认分配
         </el-button>
@@ -223,9 +246,15 @@
           <div><strong>下单时间：</strong>{{ detailData.orderTime || '--' }}</div>
           <div><strong>期望送达：</strong>{{ detailData.expectedTime || detailData.estimatedDeliveryTime || '--' }}</div>
           <div><strong>送达时间：</strong>{{ detailData.deliveryTime || '--' }}</div>
-          <div class="full"><strong>配送地址：</strong>{{ detailData.address || detailData.elderAddress || '--' }}</div>
-          <div class="full"><strong>特殊需求：</strong>{{ detailData.elderSpecialNeeds || '--' }}</div>
-          <div class="full"><strong>备注：</strong>{{ detailData.remark || '--' }}</div>
+          <div class="full">
+            <strong>配送地址：</strong>{{ detailData.address || detailData.elderAddress || '--' }}
+          </div>
+          <div class="full">
+            <strong>特殊需求：</strong>{{ detailData.elderSpecialNeeds || '--' }}
+          </div>
+          <div class="full">
+            <strong>备注：</strong>{{ detailData.remark || '--' }}
+          </div>
         </div>
 
         <el-table :data="detailData.orderDetailList || []" border size="mini">
@@ -244,6 +273,7 @@
 
 <script lang="ts">
 import { Component, Vue } from 'vue-property-decorator'
+import { jwtDecode } from 'jwt-decode'
 import {
   assignOperatorVolunteer,
   confirmOperatorPickup,
@@ -258,11 +288,27 @@ import {
   startOperatorPreparing
 } from '@/api/operatorOrder'
 import { ORDER_STATUS, getOrderStatusTag, getOrderStatusText } from '@/constants/order'
+import { UserModule } from '@/store/modules/user'
 
 interface ViewTab {
   label: string
   value: string
   key: keyof OperatorOrderOverview
+}
+
+interface OperatorSocketIdentity {
+  empId: number
+  role: string
+  diningPointId: number
+}
+
+interface OperatorSocketMessage {
+  type?: number
+  orderId?: number
+  orderNumber?: string
+  diningPointId?: number
+  content?: string
+  timestamp?: string
 }
 
 @Component({
@@ -284,6 +330,7 @@ export default class OperatorOrderCenter extends Vue {
   private assignSubmitting = false
   private detailVisible = false
   private assignVisible = false
+  private websocket: WebSocket | null = null
   private tableData: OperatorOrderItem[] = []
   private volunteers: OperatorVolunteerOption[] = []
   private total = 0
@@ -324,12 +371,149 @@ export default class OperatorOrderCenter extends Vue {
     this.loadData()
   }
 
+  mounted() {
+    this.connectWebSocket()
+  }
+
+  beforeDestroy() {
+    this.closeWebSocket()
+  }
+
   private getOrderStatusText(status: number) {
     return getOrderStatusText(status)
   }
 
   private getOrderStatusTag(status: number) {
     return getOrderStatusTag(status)
+  }
+
+  private connectWebSocket() {
+    if (this.websocket || typeof WebSocket === 'undefined') {
+      return
+    }
+
+    const token = UserModule.token
+    if (!token) {
+      console.warn('跳过操作员 websocket：缺少 token')
+      return
+    }
+
+    const identity = this.resolveSocketIdentity()
+    if (!identity) {
+      console.warn('跳过操作员 websocket：缺少身份上下文')
+      return
+    }
+
+    const socketUrl = `${this.getSocketBaseUrl()}${identity.empId}/${encodeURIComponent(identity.role)}/${identity.diningPointId}?token=${encodeURIComponent(token)}`
+    this.websocket = new WebSocket(socketUrl)
+    this.websocket.onmessage = (event: MessageEvent) => {
+      this.handleSocketMessage(event)
+    }
+    this.websocket.onerror = () => {
+      console.error('操作员 websocket 连接错误')
+    }
+    this.websocket.onclose = () => {
+      this.websocket = null
+    }
+  }
+
+  private closeWebSocket() {
+    if (!this.websocket) {
+      return
+    }
+    this.websocket.close()
+    this.websocket = null
+  }
+
+  private handleSocketMessage(event: MessageEvent) {
+    let payload: OperatorSocketMessage | null = null
+
+    try {
+      payload = JSON.parse(event.data) as OperatorSocketMessage
+    } catch (error) {
+      console.error('解析操作员 websocket 消息失败', error)
+      return
+    }
+
+    if (!payload || (payload.type !== 1 && payload.type !== 2)) {
+      return
+    }
+
+    this.playNotificationAudio(payload.type)
+
+    const title = payload.type === 1 ? '来单提醒' : '催单提醒'
+    const message = payload.type === 1
+      ? `您有新的订单待处理，订单号：${payload.orderNumber || '--'}`
+      : `订单号：${payload.orderNumber || '--'} 已发起催单，请尽快处理`
+
+    this.$notify({
+      title,
+      message,
+      type: payload.type === 1 ? 'warning' : 'info',
+      duration: 5000
+    })
+
+    this.loadData()
+  }
+
+  private playNotificationAudio(type: number) {
+    const audioRefName = type === 1 ? 'newOrderAudio' : 'reminderAudio'
+    const audio = this.$refs[audioRefName] as HTMLAudioElement | undefined
+    if (!audio) {
+      return
+    }
+
+    audio.currentTime = 0
+    const playResult = audio.play()
+    if (playResult && typeof playResult.catch === 'function') {
+      playResult.catch((error: Error) => {
+        console.warn(`播放操作员通知音频失败：${audioRefName}`, error)
+      })
+    }
+  }
+
+  private resolveSocketIdentity(): OperatorSocketIdentity | null {
+    const userInfo = (UserModule.userInfo || {}) as any
+    const empId = Number(userInfo.id || 0)
+    const role = String(userInfo.role || '').trim()
+    const diningPointId = Number(userInfo.diningPointId || 0)
+
+    if (empId > 0 && role === 'OPERATOR' && diningPointId > 0) {
+      return { empId, role, diningPointId }
+    }
+
+    if (!UserModule.token) {
+      return null
+    }
+
+    try {
+      const claims = jwtDecode(UserModule.token) as any
+      const decodedEmpId = Number(claims.empId || 0)
+      const decodedRole = String(claims.role || '').trim()
+      const decodedDiningPointId = Number(claims.diningPointId || 0)
+
+      if (decodedEmpId > 0 && decodedRole === 'OPERATOR' && decodedDiningPointId > 0) {
+        return {
+          empId: decodedEmpId,
+          role: decodedRole,
+          diningPointId: decodedDiningPointId
+        }
+      }
+    } catch (error) {
+      console.error('解析操作员 token 获取 websocket 身份失败', error)
+    }
+
+    return null
+  }
+
+  private getSocketBaseUrl() {
+    const configured = (process.env.VUE_APP_SOCKET_URL || '').trim()
+    if (configured) {
+      return configured.endsWith('/') ? configured : `${configured}/`
+    }
+
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
+    return `${protocol}://${window.location.host}/ws/`
   }
 
   private async loadData() {
@@ -410,9 +594,9 @@ export default class OperatorOrderCenter extends Vue {
   }
 
   private canAssignVolunteer(item: OperatorOrderItem) {
-    return item.status === ORDER_STATUS.TO_BE_SCHEDULED
-      || item.status === ORDER_STATUS.PREPARING
-      || item.status === ORDER_STATUS.MEAL_READY
+    return item.status === ORDER_STATUS.TO_BE_SCHEDULED ||
+      item.status === ORDER_STATUS.PREPARING ||
+      item.status === ORDER_STATUS.MEAL_READY
   }
 
   private canMarkMealReady(item: OperatorOrderItem) {

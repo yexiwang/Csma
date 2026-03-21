@@ -63,6 +63,10 @@
 说明：
 - `ADMIN` 当前不要求绑定助餐点。
 - `OPERATOR` 必须绑定一个有效助餐点。
+- 当前管理员端员工列表查询已支持以下条件：
+  - `name`
+  - `role`
+  - `dining_point_id`
 
 ### 3.3 family_profile
 
@@ -95,6 +99,9 @@
 
 说明：
 - `status=0` 表示休息态，不允许生成新单。
+- 当前管理员端助餐点列表查询已支持：
+  - `name`
+  - `status`
 
 ### 3.5 elderly
 
@@ -113,6 +120,9 @@
 
 说明：
 - 当前管理员端已补齐“所属助餐点”的前后端读写链路。
+- 当前管理员端老人档案列表查询已支持：
+  - `name`
+  - `dining_point_id`
 
 ### 3.6 dish
 
@@ -202,6 +212,9 @@
   - `subsidy_amount = 0`
   - `pack_amount = 0`
 - FAMILY 下单当前固定提交 `delivery_status = 0`；后端也会在 `OrdersSubmitDTO.deliveryStatus` 为空时默认补 `0`，避免因数据库非空约束导致事务回滚。
+- `orders.dining_point_id` 当前同时作为 WebSocket 来单提醒和催单提醒的路由依据：
+  - FAMILY 支付成功后，按该字段定向推送给对应助餐点在线 `OPERATOR`
+  - FAMILY 催单后，也按该字段定向推送给对应助餐点在线 `OPERATOR`
 
 ### 3.10 order_review
 
@@ -247,6 +260,7 @@
 说明：
 
 - 当前用户端概览接口为 `GET /user/volunteer/overview`。
+- 当前用户端概览导出接口为 `GET /user/volunteer/overview/export`，直接复用概览查询结果生成轻量 Excel，不新增额外统计表。
 - 接口基于当前登录用户身份获取数据，前端不传 `volunteerId`。
 - 概览接口当前数据来源为：
   - `user.name / user.status`
@@ -344,6 +358,23 @@
 - 营业额：只统计 `status = 6`
 - 工作台/概览页：统一按当前 `1-7` 语义
 
+### 7.3 WebSocket 提醒路由
+- 当前没有新增消息中心表、通知表或消息持久化表。
+- WebSocket 连接当前使用：
+  - `/ws/{empId}/{role}/{diningPointId}`
+- 当前提醒只定向推送给在线 `OPERATOR`，过滤条件为：
+  - `role = OPERATOR`
+  - `diningPointId = orders.dining_point_id`
+- 当前消息类型约定为：
+  - `type = 1`：来单提醒
+  - `type = 2`：催单提醒
+- FAMILY 催单当前只允许用于：
+  - `2 待调度`
+  - `3 制作中`
+  - `4 待取餐`
+  - `5 配送中`
+- 同一订单当前增加 60 秒基础催单限流，不做数据库持久化。
+
 ## 8. 当前支付链路问题说明
 
 当前支付功能需要特别说明：
@@ -356,7 +387,7 @@
   - `status = 2`
   - `pay_status = 1`
   - `checkout_time = now`
-  - 触发现有 WebSocket 来单提醒
+  - 按 `orders.dining_point_id` 向对应助餐点在线 `OPERATOR` 推送 WebSocket 来单提醒
 - 历史订单“继续支付”和 `/notify/paySuccess` 当前都复用同一套 `paySuccess(orderNumber)` 逻辑。
 - 前端当前会对 `/user/order/submit` 和 `/user/order/payment` 的业务码做校验；若后端返回 `code = 0`，页面直接展示真实错误，不再误报“订单创建成功”。
 - `/user/order/payment` 当前只允许处理 `status = 1` 的待支付订单。

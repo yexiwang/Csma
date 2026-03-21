@@ -10,7 +10,7 @@ import java.util.List;
 public interface ElderlyService {
     void save(ElderlyDTO elderlyDTO);
 
-    PageResult pageQuery(int page, int pageSize, String name);
+    PageResult pageQuery(int page, int pageSize, String name, Long diningPointId);
 
     List<Elderly> getByUserId(Long userId);
 

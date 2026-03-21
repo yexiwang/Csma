@@ -60,10 +60,11 @@ public class ElderlyServiceImpl implements ElderlyService {
     }
 
     @Override
-    public PageResult pageQuery(int page, int pageSize, String name) {
+    public PageResult pageQuery(int page, int pageSize, String name, Long diningPointId) {
         PageHelper.startPage(page, pageSize);
         Elderly elderly = new Elderly();
         elderly.setName(name);
+        elderly.setDiningPointId(diningPointId);
         Page<ElderlyVO> pageResult = elderlyMapper.pageQueryWithDiningPoint(elderly);
         return new PageResult(pageResult.getTotal(), pageResult.getResult());
     }

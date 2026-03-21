@@ -29,9 +29,9 @@ public class DiningPointServiceImpl implements DiningPointService {
     }
 
     @Override
-    public Page<DiningPoint> pageQuery(int page, int pageSize, String name) {
+    public Page<DiningPoint> pageQuery(int page, int pageSize, String name, Integer status) {
         PageHelper.startPage(page, pageSize);
-        return diningPointMapper.pageQuery(name);
+        return diningPointMapper.pageQuery(name, status);
     }
 
     @Override

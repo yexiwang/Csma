@@ -3,16 +3,28 @@
   <div v-else class="order-page">
     <div class="stats-grid">
       <el-card shadow="never" class="stat-card">
-        <div class="stat-label">待调度</div>
-        <div class="stat-value">{{ statistics.toBeConfirmed || 0 }}</div>
+        <div class="stat-label">
+          待调度
+        </div>
+        <div class="stat-value">
+          {{ statistics.toBeConfirmed || 0 }}
+        </div>
       </el-card>
       <el-card shadow="never" class="stat-card">
-        <div class="stat-label">制作中</div>
-        <div class="stat-value">{{ statistics.confirmed || 0 }}</div>
+        <div class="stat-label">
+          制作中
+        </div>
+        <div class="stat-value">
+          {{ statistics.confirmed || 0 }}
+        </div>
       </el-card>
       <el-card shadow="never" class="stat-card">
-        <div class="stat-label">待取餐</div>
-        <div class="stat-value">{{ statistics.deliveryInProgress || 0 }}</div>
+        <div class="stat-label">
+          待取餐
+        </div>
+        <div class="stat-value">
+          {{ statistics.deliveryInProgress || 0 }}
+        </div>
       </el-card>
     </div>
 
@@ -55,8 +67,12 @@
           style="width: 320px"
           @change="handleQuery"
         />
-        <el-button type="primary" @click="handleQuery">查询</el-button>
-        <el-button @click="resetQuery">重置</el-button>
+        <el-button type="primary" @click="handleQuery">
+          查询
+        </el-button>
+        <el-button @click="resetQuery">
+          重置
+        </el-button>
       </div>
 
       <el-table
@@ -94,7 +110,9 @@
         </el-table-column>
         <el-table-column label="操作" min-width="260" fixed="right">
           <template slot-scope="{ row }">
-            <el-button type="text" @click="openDetail(row.id)">查看</el-button>
+            <el-button type="text" @click="openDetail(row.id)">
+              查看
+            </el-button>
             <el-button
               v-if="isAdmin && row.status === ORDER_STATUS.TO_BE_SCHEDULED"
               type="text"
@@ -163,7 +181,9 @@
         </el-form-item>
       </el-form>
       <div slot="footer">
-        <el-button @click="dispatchVisible = false">取消</el-button>
+        <el-button @click="dispatchVisible = false">
+          取消
+        </el-button>
         <el-button type="primary" :loading="dispatching" @click="submitDispatch">
           确认分配
         </el-button>
@@ -185,8 +205,12 @@
           <div><strong>志愿者：</strong>{{ detailData.volunteerName || '--' }}</div>
           <div><strong>老人：</strong>{{ getDisplayElderName(detailData) }}</div>
           <div><strong>下单时间：</strong>{{ detailData.orderTime || '--' }}</div>
-          <div class="full"><strong>地址：</strong>{{ detailData.address || '--' }}</div>
-          <div class="full"><strong>备注：</strong>{{ detailData.remark || '--' }}</div>
+          <div class="full">
+            <strong>地址：</strong>{{ detailData.address || '--' }}
+          </div>
+          <div class="full">
+            <strong>备注：</strong>{{ detailData.remark || '--' }}
+          </div>
         </div>
 
         <el-table :data="detailData.orderDetailList || []" border size="mini">

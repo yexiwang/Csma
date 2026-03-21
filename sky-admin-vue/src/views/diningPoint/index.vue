@@ -11,6 +11,21 @@
           @clear="handleQuery"
           @keyup.enter.native="handleQuery"
         />
+        <label style="margin: 0 10px 0 20px">状态：</label>
+        <el-select
+          v-model="queryParams.status"
+          placeholder="全部状态"
+          clearable
+          style="width: 140px"
+          @change="handleQuery"
+        >
+          <el-option
+            v-for="item in statusOptions"
+            :key="item.value === null ? 'ALL' : item.value"
+            :label="item.label"
+            :value="item.value"
+          />
+        </el-select>
         <div class="tableLab">
           <el-button type="primary" @click="handleAdd">
             + 新建助餐点
@@ -133,8 +148,14 @@ export default class extends Vue {
   private page = 1
   private pageSize = 10
   private queryParams = {
-    name: ''
+    name: '',
+    status: null as number | null
   }
+  private statusOptions = [
+    { label: '全部', value: null },
+    { label: '营业中', value: 1 },
+    { label: '休息中', value: 0 }
+  ]
   private ids: any[] = []
   private open = false
   private title = ''
@@ -161,7 +182,8 @@ export default class extends Vue {
       const res = await getDiningPointPage({
         page: this.page,
         pageSize: this.pageSize,
-        name: this.queryParams.name
+        name: this.queryParams.name,
+        status: this.queryParams.status
       })
       const pageData = res.data && res.data.data ? res.data.data : res.data
       this.tableData = pageData && pageData.records ? pageData.records : []

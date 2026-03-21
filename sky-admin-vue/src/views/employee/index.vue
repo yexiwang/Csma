@@ -8,10 +8,41 @@
           placeholder="请输入员工姓名"
           style="width: 15%"
           clearable
-          @clear="init"
-          @keyup.enter.native="initFun"
+          @clear="handleQuery"
+          @keyup.enter.native="handleQuery"
         />
-        <el-button class="normal-btn continue" @click="init(true)">
+        <label style="margin: 0 5px 0 20px">员工角色：</label>
+        <el-select
+          v-model="selectedRole"
+          placeholder="全部角色"
+          clearable
+          style="width: 160px"
+          @change="handleQuery"
+        >
+          <el-option
+            v-for="item in roleOptions"
+            :key="item.value || 'ALL'"
+            :label="item.label"
+            :value="item.value"
+          />
+        </el-select>
+        <label style="margin: 0 5px 0 20px">所属助餐点：</label>
+        <el-select
+          v-model="selectedDiningPointId"
+          placeholder="全部助餐点"
+          clearable
+          filterable
+          style="width: 180px"
+          @change="handleQuery"
+        >
+          <el-option
+            v-for="item in diningPointOptions"
+            :key="item.id"
+            :label="item.name"
+            :value="item.id"
+          />
+        </el-select>
+        <el-button class="normal-btn continue" @click="handleQuery">
           查询
         </el-button>
         <el-button
@@ -102,6 +133,7 @@
 import { Component, Vue } from 'vue-property-decorator'
 import HeadLable from '@/components/HeadLable/index.vue'
 import { getEmployeeList, enableOrDisableEmployee } from '@/api/employee'
+import { DiningPointOption, getDiningPointList } from '@/api/diningPoint'
 import InputAutoComplete from '@/components/InputAutoComplete/index.vue'
 import Empty from '@/components/Empty/index.vue'
 
@@ -115,26 +147,47 @@ import Empty from '@/components/Empty/index.vue'
 })
 export default class extends Vue {
   private input = ''
+  private selectedRole: string | null = null
+  private selectedDiningPointId: number | null = null
   private counts = 0
   private page = 1
   private pageSize = 10
   private tableData: any[] = []
+  private diningPointOptions: DiningPointOption[] = []
   private id = ''
   private status = ''
   private isSearch = false
+  private roleOptions = [
+    { label: '全部', value: null },
+    { label: '管理员', value: 'ADMIN' },
+    { label: '操作员', value: 'OPERATOR' }
+  ]
 
   created() {
+    this.loadDiningPointOptions()
     this.init()
+  }
+
+  private async loadDiningPointOptions() {
+    try {
+      const res: any = await getDiningPointList()
+      if (String(res.data.code) === '1' && Array.isArray(res.data.data)) {
+        this.diningPointOptions = res.data.data
+      }
+    } catch (err) {
+      const error = err as Error
+      this.$message.error('助餐点列表加载失败：' + error.message)
+    }
   }
 
   private initProp(val: string) {
     this.input = val
-    this.initFun()
+    this.handleQuery()
   }
 
-  private initFun() {
+  private handleQuery() {
     this.page = 1
-    this.init()
+    this.init(true)
   }
 
   private getRoleLabel(role: string) {
@@ -146,7 +199,9 @@ export default class extends Vue {
     const params = {
       page: this.page,
       pageSize: this.pageSize,
-      name: this.input || undefined
+      name: this.input || undefined,
+      role: this.selectedRole || undefined,
+      diningPointId: this.selectedDiningPointId || undefined
     }
 
     try {

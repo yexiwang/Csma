@@ -8,7 +8,7 @@ import java.util.List;
 public interface DiningPointService {
     void save(DiningPoint diningPoint);
 
-    Page<DiningPoint> pageQuery(int page, int pageSize, String name);
+    Page<DiningPoint> pageQuery(int page, int pageSize, String name, Integer status);
 
     List<DiningPoint> list(Integer status);
 

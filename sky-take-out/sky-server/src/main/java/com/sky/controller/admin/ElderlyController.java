@@ -39,9 +39,9 @@ public class ElderlyController {
 
     @GetMapping("/page")
     @ApiOperation("老人档案分页查询")
-    public Result<PageResult> page(int page, int pageSize, String name) {
-        log.info("老人档案分页查询：page={}, pageSize={}, name={}", page, pageSize, name);
-        return Result.success(elderlyService.pageQuery(page, pageSize, name));
+    public Result<PageResult> page(int page, int pageSize, String name, Long diningPointId) {
+        log.info("老人档案分页查询：page={}, pageSize={}, name={}, diningPointId={}", page, pageSize, name, diningPointId);
+        return Result.success(elderlyService.pageQuery(page, pageSize, name, diningPointId));
     }
 
     @GetMapping("/{id}")

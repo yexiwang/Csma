@@ -11,6 +11,22 @@
           @clear="handleQuery"
           @keyup.enter.native="handleQuery"
         />
+        <label style="margin: 0 10px 0 20px">所属助餐点：</label>
+        <el-select
+          v-model="queryParams.diningPointId"
+          placeholder="全部助餐点"
+          clearable
+          filterable
+          style="width: 180px"
+          @change="handleQuery"
+        >
+          <el-option
+            v-for="item in queryDiningPointOptions"
+            :key="item.id"
+            :label="item.name"
+            :value="item.id"
+          />
+        </el-select>
         <div class="tableLab">
           <el-button type="primary" @click="handleAdd">
             + 新增老人档案
@@ -202,11 +218,13 @@ export default class extends Vue {
   private page = 1
   private pageSize = 10
   private queryParams = {
-    name: ''
+    name: '',
+    diningPointId: undefined as number | undefined
   }
   private open = false
   private title = ''
   private form: ElderlyViewForm = this.createDefaultForm()
+  private queryDiningPointOptions: DiningPointOption[] = []
   private diningPointOptions: DiningPointOption[] = []
   private familyProfileOptions: FamilyProfileSelectOption[] = []
   private activeFamilyProfileOptions: FamilyProfileSelectOption[] = []
@@ -219,6 +237,7 @@ export default class extends Vue {
   }
 
   created() {
+    this.loadQueryDiningPointOptions()
     this.loadDiningPointOptions()
     this.loadActiveFamilyProfileOptions()
     this.getList()
@@ -272,7 +291,8 @@ export default class extends Vue {
       const params = {
         page: this.page,
         pageSize: this.pageSize,
-        name: this.queryParams.name.trim() || undefined
+        name: this.queryParams.name.trim() || undefined,
+        diningPointId: this.queryParams.diningPointId
       }
       const pageData = this.unwrapPage<ElderlyFormData>(await getElderlyPage(params), '获取老人档案失败')
       this.tableData = Array.isArray(pageData.records) ? pageData.records : []
@@ -287,6 +307,16 @@ export default class extends Vue {
   private handleQuery() {
     this.page = 1
     this.getList()
+  }
+
+  private async loadQueryDiningPointOptions() {
+    try {
+      const data = this.unwrapData<DiningPointOption[]>(await getDiningPointList(), '加载助餐点列表失败')
+      this.queryDiningPointOptions = Array.isArray(data) ? data : []
+    } catch (error) {
+      this.queryDiningPointOptions = []
+      this.$message.error(this.getErrorMessage(error, '加载助餐点列表失败'))
+    }
   }
 
   private async loadDiningPointOptions() {

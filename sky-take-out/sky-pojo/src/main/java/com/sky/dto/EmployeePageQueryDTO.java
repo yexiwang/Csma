@@ -14,6 +14,12 @@ public class EmployeePageQueryDTO implements Serializable {
     @ApiModelProperty("员工姓名")
     private String name;
 
+    @ApiModelProperty("员工角色")
+    private String role;
+
+    @ApiModelProperty("所属助餐点ID")
+    private Long diningPointId;
+
     //页码
     @ApiModelProperty("页码")
     private int page;

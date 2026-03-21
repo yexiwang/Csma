@@ -4,6 +4,7 @@ export interface ElderlyPageParams {
   page: number
   pageSize: number
   name?: string
+  diningPointId?: number
 }
 
 export interface ElderlyFormData {

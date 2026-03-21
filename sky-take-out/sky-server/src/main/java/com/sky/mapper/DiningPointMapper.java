@@ -13,7 +13,7 @@ public interface DiningPointMapper {
 
     void insert(DiningPoint diningPoint);
 
-    Page<DiningPoint> pageQuery(String name);
+    Page<DiningPoint> pageQuery(String name, Integer status);
 
     List<DiningPoint> list(Integer status);
 
