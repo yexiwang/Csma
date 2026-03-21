@@ -79,6 +79,9 @@
 .icon-complete:before {
   content: "\e619";
 }
+.icon-shitangguanli:before {
+  content: "\e65a";
+}
 
 
 

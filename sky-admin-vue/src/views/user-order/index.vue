@@ -5,9 +5,6 @@
         <h1>点餐</h1>
         <p>先确定当前服务老人，再在其所属助餐点范围内选择菜品并下单。</p>
       </div>
-      <el-button type="text" @click="$router.push('/family-history')">
-        查看历史订单
-      </el-button>
     </div>
 
     <div class="service-panel">

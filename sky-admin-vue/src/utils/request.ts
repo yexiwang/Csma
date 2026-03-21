@@ -9,6 +9,25 @@ import {
 } from './requestOptimize'
 import router from '@/router'
 const CancelToken = axios.CancelToken;
+let redirectingToLogin = false
+
+const handleUnauthorized = async () => {
+  if (redirectingToLogin) {
+    return
+  }
+
+  redirectingToLogin = true
+  try {
+    await UserModule.ResetToken()
+  } finally {
+    if (router.currentRoute.path !== '/login') {
+      router.replace('/login')
+    }
+    setTimeout(() => {
+      redirectingToLogin = false
+    }, 0)
+  }
+}
 
 const service = axios.create({
   baseURL: process.env.VUE_APP_BASE_API,
@@ -87,9 +106,8 @@ service.interceptors.response.use(
     console.log('==================')
 
     if (response.data.status === 401) {
-      router.push('/login')
-      // const res = response.data
-      // return response
+      handleUnauthorized()
+      return Promise.reject(new Error('登录状态已过期，请重新登录'))
     }
     //请求响应中的config的url会带上代理的api需要去掉
     response.config.url = response.config.url.replace('/api', '')
@@ -116,17 +134,22 @@ service.interceptors.response.use(
     if (error && error.response) {
       switch (error.response.status) {
         case 401:
-          router.push('/login')
+          handleUnauthorized()
+          error.message = '登录状态已过期，请重新登录'
           break;
         case 405:
           error.message = '请求错误'
       }
     }
     //请求响应中的config的url会带上代理的api需要去掉
-    error.config.url = error.config.url.replace('/api', '')
+    if (error.config && error.config.url) {
+      error.config.url = error.config.url.replace('/api', '')
+    }
     // 请求完成，删除请求中状态
-    const key = getRequestKey(error.config);
-    removePending(key);
+    if (error.config) {
+      const key = getRequestKey(error.config);
+      removePending(key);
+    }
     // console.log(error, pending, 'error11')
     // Message({
     //   'message': error.message,

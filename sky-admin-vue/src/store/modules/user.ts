@@ -154,9 +154,18 @@ class User extends VuexModule implements IUserState {
     removeToken()
     removeRole()
     removeUserInfo()
+    removeStoreId()
     this.SET_TOKEN('')
     this.SET_ROLES([])
     this.SET_USERINFO({})
+    this.SET_NAME('')
+    this.SET_AVATAR('')
+    this.SET_INTRODUCTION('')
+    this.SET_STOREID('')
+    this.SET_USERNAME('')
+    Cookies.remove('username')
+    Cookies.remove('user_info')
+    Cookies.remove('role')
   }
 
   @Action

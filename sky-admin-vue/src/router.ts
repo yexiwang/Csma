@@ -63,6 +63,7 @@ const router = new Router({
           meta: {
             title: '助餐点管理',
             icon: 'icon-shop',
+            svgIcon: 'shop',
             roles: ['ADMIN']
           }
         },

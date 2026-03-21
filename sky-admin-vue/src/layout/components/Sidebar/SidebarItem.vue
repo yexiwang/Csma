@@ -19,8 +19,15 @@
           >
             <!-- <i v-if="theOnlyOneChild.meta.title==='工作台'" class="iconfont icon img-icon-sel" /> -->
             <!-- <svg-icon v-if="theOnlyOneChild.meta.title==='工作台'" name="dashboard" width="20" height="20"></svg-icon> -->
+            <svg-icon
+              v-if="theOnlyOneChild.meta.svgIcon"
+              :name="theOnlyOneChild.meta.svgIcon"
+              width="28"
+              height="28"
+              class="menu-svg-icon"
+            />
             <i
-              v-if="theOnlyOneChild.meta.icon"
+              v-else-if="theOnlyOneChild.meta.icon"
               class="iconfont"
               :class="theOnlyOneChild.meta.icon"
             />
@@ -32,8 +39,15 @@
       </template>
       <el-submenu v-else :index="resolvePath(item.path)" popper-append-to-body>
         <template slot="title">
+          <svg-icon
+            v-if="item.meta && item.meta.svgIcon"
+            :name="item.meta.svgIcon"
+            width="28"
+            height="28"
+            class="menu-svg-icon"
+          />
           <i
-            v-if="item.meta && item.meta.icon"
+            v-else-if="item.meta && item.meta.icon"
             class="iconfont"
             :class="item.meta.icon"
           />
@@ -140,3 +154,13 @@ export default class extends Vue {
   }
 }
 </script>
+
+<style lang="scss" scoped>
+.menu-svg-icon {
+  width: 28px !important;
+  height: 28px !important;
+  margin-left: -4px;
+  margin-right: 4px !important;
+  vertical-align: -0.85em;
+}
+</style>
