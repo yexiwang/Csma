@@ -1,5 +1,5 @@
 <template>
-  <div class="family-address-page" v-loading="loading">
+  <div v-loading="loading" class="family-address-page">
     <div class="page-header">
       <div>
         <h1>地址簿</h1>
@@ -317,8 +317,8 @@ export default class FamilyAddressList extends Vue {
   }
 
   &.active {
-    border-color: #f8b500;
-    box-shadow: 0 14px 28px rgba(248, 181, 0, 0.18);
+    border-color: #2f8f83;
+    box-shadow: 0 14px 28px rgba(47, 143, 131, 0.18);
   }
 }
 

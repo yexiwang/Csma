@@ -10,8 +10,12 @@
     <div class="service-panel">
       <div class="service-panel-main">
         <div class="panel-copy">
-          <div class="panel-label">当前服务老人</div>
-          <div class="panel-value">{{ selectedElderly ? selectedElderly.name : '未选择' }}</div>
+          <div class="panel-label">
+            当前服务老人
+          </div>
+          <div class="panel-value">
+            {{ selectedElderly ? selectedElderly.name : '未选择' }}
+          </div>
           <div class="panel-hint">
             {{ selectedDiningPointName ? `助餐点：${selectedDiningPointName}` : '请选择已绑定助餐点的老人后再点餐' }}
           </div>
@@ -58,9 +62,11 @@
       />
     </div>
 
-    <div v-if="showOrderingContent" class="page-body" v-loading="pageLoading || dishLoading">
+    <div v-if="showOrderingContent" v-loading="pageLoading || dishLoading" class="page-body">
       <div class="category-panel">
-        <div class="panel-title">分类</div>
+        <div class="panel-title">
+          分类
+        </div>
         <div
           v-for="category in visibleCategories"
           :key="category.id"
@@ -80,10 +86,16 @@
       <div class="dish-panel">
         <div class="dish-panel-header">
           <div>
-            <div class="panel-title">{{ currentCategoryName }}</div>
-            <div class="dish-panel-subtitle">{{ selectedDiningPointName || '未绑定助餐点' }}</div>
+            <div class="panel-title">
+              {{ currentCategoryName }}
+            </div>
+            <div class="dish-panel-subtitle">
+              {{ selectedDiningPointName || '未绑定助餐点' }}
+            </div>
           </div>
-          <div class="dish-panel-meta">共 {{ allAvailableDishes.length }} 道可售菜品</div>
+          <div class="dish-panel-meta">
+            共 {{ allAvailableDishes.length }} 道可售菜品
+          </div>
         </div>
 
         <div v-if="currentDishes.length > 0" class="dish-grid">
@@ -119,7 +131,7 @@
       </div>
     </div>
 
-    <div v-else class="empty-state-wrapper" v-loading="pageLoading">
+    <div v-else v-loading="pageLoading" class="empty-state-wrapper">
       <el-empty :description="pageEmptyDescription">
         <el-button
           v-if="pageEmptyState === 'NO_ELDERLY'"
@@ -169,7 +181,9 @@
     >
       <div class="checkout-dialog">
         <div class="checkout-section">
-          <div class="section-title">服务对象</div>
+          <div class="section-title">
+            服务对象
+          </div>
           <div class="service-summary-card">
             <div class="service-summary-row">
               <span class="label">老人</span>
@@ -203,7 +217,9 @@
               <span>{{ selectedAddress.consignee }}</span>
               <span>{{ selectedAddress.phone }}</span>
             </div>
-            <div class="address-card-body">{{ formatFullAddress(selectedAddress) }}</div>
+            <div class="address-card-body">
+              {{ formatFullAddress(selectedAddress) }}
+            </div>
           </div>
 
           <el-empty
@@ -218,7 +234,9 @@
         </div>
 
         <div class="checkout-section">
-          <div class="section-title">菜品明细</div>
+          <div class="section-title">
+            菜品明细
+          </div>
           <div class="checkout-order-list">
             <div
               v-for="item in cartItems"
@@ -226,8 +244,12 @@
               class="checkout-order-item"
             >
               <div class="checkout-order-main">
-                <div class="checkout-order-name">{{ item.name }}</div>
-                <div v-if="item.dishFlavor" class="checkout-order-meta">{{ item.dishFlavor }}</div>
+                <div class="checkout-order-name">
+                  {{ item.name }}
+                </div>
+                <div v-if="item.dishFlavor" class="checkout-order-meta">
+                  {{ item.dishFlavor }}
+                </div>
               </div>
               <div class="checkout-order-side">
                 <span>x{{ item.number }}</span>
@@ -238,7 +260,9 @@
         </div>
 
         <div class="checkout-section">
-          <div class="section-title">配送要求</div>
+          <div class="section-title">
+            配送要求
+          </div>
           <el-form label-width="110px">
             <el-form-item label="预计送达">
               <el-date-picker
@@ -265,12 +289,20 @@
         </div>
 
         <div class="checkout-section">
-          <div class="section-title">餐具</div>
+          <div class="section-title">
+            餐具
+          </div>
           <div class="tableware-card">
             <el-radio-group :value="tablewareMode" @input="handleTablewareModeChange">
-              <el-radio-button label="none">不需要</el-radio-button>
-              <el-radio-button label="auto">按餐量提供</el-radio-button>
-              <el-radio-button label="custom">自定义数量</el-radio-button>
+              <el-radio-button label="none">
+                不需要
+              </el-radio-button>
+              <el-radio-button label="auto">
+                按餐量提供
+              </el-radio-button>
+              <el-radio-button label="custom">
+                自定义数量
+              </el-radio-button>
             </el-radio-group>
 
             <div v-if="tablewareMode === 'custom'" class="tableware-custom-row">
@@ -284,18 +316,32 @@
               />
             </div>
 
-            <div class="tableware-hint">{{ tablewareHintText }}</div>
+            <div class="tableware-hint">
+              {{ tablewareHintText }}
+            </div>
           </div>
         </div>
 
         <div class="checkout-section">
-          <div class="section-title">费用明细</div>
+          <div class="section-title">
+            费用明细
+          </div>
           <div class="checkout-amount-list">
-            <div class="amount-row"><span>菜品金额</span><span>￥{{ formatAmount(cartSummary.dishAmount) }}</span></div>
-            <div class="amount-row"><span>配送费</span><span>￥{{ formatAmount(cartSummary.deliveryFee) }}</span></div>
-            <div class="amount-row"><span>餐具费</span><span>￥{{ formatAmount(cartSummary.tablewareFee) }}</span></div>
-            <div class="amount-row"><span>补贴金额</span><span>-￥{{ formatAmount(cartSummary.subsidyAmount) }}</span></div>
-            <div class="amount-row total"><span>待支付</span><span>￥{{ formatAmount(cartSummary.payAmount) }}</span></div>
+            <div class="amount-row">
+              <span>菜品金额</span><span>￥{{ formatAmount(cartSummary.dishAmount) }}</span>
+            </div>
+            <div class="amount-row">
+              <span>配送费</span><span>￥{{ formatAmount(cartSummary.deliveryFee) }}</span>
+            </div>
+            <div class="amount-row">
+              <span>餐具费</span><span>￥{{ formatAmount(cartSummary.tablewareFee) }}</span>
+            </div>
+            <div class="amount-row">
+              <span>补贴金额</span><span>-￥{{ formatAmount(cartSummary.subsidyAmount) }}</span>
+            </div>
+            <div class="amount-row total">
+              <span>待支付</span><span>￥{{ formatAmount(cartSummary.payAmount) }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -1419,8 +1465,8 @@ export default class UserOrder extends Vue {
   min-height: calc(100vh - 84px);
   padding: 24px 24px 112px;
   background:
-    radial-gradient(circle at top left, rgba(255, 194, 0, 0.16), transparent 28%),
-    linear-gradient(180deg, #fffdf7 0%, #f7f9fc 100%);
+    radial-gradient(circle at top left, rgba(47, 143, 131, 0.16), transparent 28%),
+    linear-gradient(180deg, #f4fbf8 0%, #eef5f2 100%);
 }
 
 .page-header,
@@ -1530,7 +1576,7 @@ export default class UserOrder extends Vue {
   cursor: pointer;
 
   &.active {
-    background: #f8b500;
+    background: #2f8f83;
     color: #fff;
     font-weight: 600;
   }
@@ -1585,7 +1631,7 @@ export default class UserOrder extends Vue {
 .tableware-card {
   padding: 16px;
   border-radius: 14px;
-  background: #fff9e8;
+  background: #eef7f3;
 }
 
 .service-summary-card {

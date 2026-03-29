@@ -51,7 +51,7 @@ li {
 
       .active {
         height: 38px;
-        background: #ffc200;
+        background: $mine;
       }
     }
   }
@@ -155,7 +155,7 @@ li {
 
     li {
       flex: 1;
-      background: #fffbf0;
+      background: #eef7f3;
       border-radius: 4px;
       margin-left: 20px;
       padding: 20px;
@@ -329,21 +329,25 @@ li {
 
     li {
       flex: 1;
-      background: #fffbf0;
+      background: #eef7f3;
       border-radius: 4px;
       margin-left: 20px;
       padding:20px;
       font-size: 14px;
       line-height: 36px;
-      color: #333;
+      color: #223430;
       &.add {
         width: 100px;
         flex: none;
-        background: #FFC100;
+        background: #2f8f83;
         border-radius: 4px;
         text-align: center;
-        color: #333;
+        color: #ffffff;
         padding: 18px 20px 10px;
+
+        a {
+          color: inherit;
+        }
 
         p {
           line-height: 20px;
@@ -357,6 +361,7 @@ li {
           background: url(../../src/assets/icons/btn_add@2x.png) no-repeat;
           background-size: contain;
           margin-bottom: 5px;
+          filter: brightness(0) invert(1);
         }
       }
     }
@@ -448,7 +453,7 @@ li {
     cursor: pointer;
 
     &.active {
-      background: #FFC200;
+      background: $mine;
     }
   }
 

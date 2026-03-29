@@ -1,7 +1,9 @@
 <template>
   <div class="container homecon">
     <div class="header">
-      <h2 class="homeTitle">订单看板</h2>
+      <h2 class="homeTitle">
+        订单看板
+      </h2>
       <el-button type="primary" size="mini" @click="$router.push('/order')">
         前往订单调度
       </el-button>
@@ -212,7 +214,7 @@ export default class DashboardOrderList extends Vue {
   cursor: pointer;
 
   &.active {
-    background: #f8b500;
+    background: #2f8f83;
     color: #fff;
   }
 }

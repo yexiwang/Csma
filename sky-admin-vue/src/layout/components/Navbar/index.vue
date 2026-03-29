@@ -361,7 +361,7 @@ export default class extends Vue {
   height: 60px;
   // overflow: hidden;
   position: relative;
-  background: #ffc100;
+  background: #d9ece6;
 
   // box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
   .statusBox {
@@ -400,7 +400,7 @@ export default class extends Vue {
       display: inline-block;
       cursor: pointer;
       &:hover {
-        background: rgba(255, 255, 255, 0.52);
+        background: rgba(255, 255, 255, 0.72);
       }
     }
     .amendPwdIcon {
@@ -485,7 +485,8 @@ export default class extends Vue {
 
     .el-button--primary {
       // height: 32px;
-      background: rgba(255, 255, 255, 0.52);
+      background: rgba(255, 255, 255, 0.78);
+      color: #223430;
       border-radius: 4px;
       padding-top: 0px;
       padding-bottom: 0px;
@@ -498,8 +499,12 @@ export default class extends Vue {
       border: 0 none;
       height: 32px;
       line-height: 32px;
+      span {
+        color: inherit;
+      }
       &.active {
         background: rgba(250, 250, 250, 0);
+        color: #1f3d37;
         border: 0 none;
         .el-icon-arrow-down {
           transform: rotate(-180deg);
@@ -566,7 +571,7 @@ export default class extends Vue {
   .el-dialog__header {
     height: 61px;
     line-height: 60px;
-    background: #fbfbfa;
+    background: #f4f8f6;
     padding: 0 30px;
     font-size: 16px;
     color: #333;
@@ -597,12 +602,12 @@ export default class extends Vue {
     }
     .el-radio-group {
       & > .is-checked {
-        border: 1px solid #ffc200;
+        border: 1px solid #2f8f83;
       }
     }
     .el-radio {
       width: 100%;
-      background: #fbfbfa;
+      background: #f6faf8;
       border: 1px solid #e5e4e4;
       border-radius: 4px;
       padding: 14px 22px;
@@ -674,6 +679,8 @@ export default class extends Vue {
     height: 32px;
     line-height: 32px;
     padding: 0 5px 0 7px;
+    color: #223430;
+    font-weight: 500;
     i {
       margin-left: 10px;
 
@@ -682,12 +689,16 @@ export default class extends Vue {
       float: right;
     }
     &:hover {
-      background: #f6f1e1;
+      background: #eef7f3;
+      color: #1f3d37;
     }
+  }
+  .outLogin {
+    color: #1f3d37;
   }
 }
 .msgTip {
-  color: #419eff;
+  color: #2f8f83;
   padding: 0 5px;
 }
 // .el-dropdown{

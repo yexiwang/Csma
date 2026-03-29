@@ -1,29 +1,5 @@
 <template>
   <div>
-    <div class="logo">
-      <!-- <img
-        src="./../../../assets/logo.png"
-        width="122.5"
-        alt=""
-      > -->
-      <!-- <img
-        src="@/assets/login/login-logo.png"
-        alt=""
-        style="width: 120px; height: 31px"
-      /> -->
-      <div v-if="!isCollapse"
-           class="sidebar-logo"
-      >
-        <img src="@/assets/login/logo.png"
-             style="width: 120px; height: 31px"
-        >
-      </div>
-      <div v-else
-           class="sidebar-logo-mini"
-      >
-        <img src="@/assets/login/mini-logo.png">
-      </div>
-    </div>
     <el-scrollbar wrap-class="scrollbar-wrapper">
       <el-menu :default-openeds="defOpen"
                :default-active="defAct"
@@ -175,30 +151,15 @@ export default class extends Vue {
 </script>
 
 <style lang="scss" scoped>
-.logo {
-  text-align: center;
-  background-color: #ffc100;
-  padding: 15px 0 0;
-  height: 60px;
-  img {
-    display: inline-block;
-  }
-}
-.sidebar-logo-mini {
-  img {
-    width: 30px;
-    height: 30px;
-  }
-}
 .el-scrollbar {
   height: 100%;
-  background-color: rgb(52, 55, 68);
+  background-color: $menuBg;
 }
 
 .el-menu {
   border: none;
-  height: calc(95vh - 23px);
+  min-height: calc(100vh - 32px);
   width: 100% !important;
-  padding: 47px 15px 0;
+  padding: 24px 15px 0;
 }
 </style>

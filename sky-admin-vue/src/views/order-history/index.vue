@@ -848,10 +848,10 @@ export default class OrderHistory extends Vue {
   background: #f5f7fa;
 
   .header {
-    background: linear-gradient(135deg, #f8b500, #ffd86f);
+    background: linear-gradient(135deg, #2f8f83, #5eb3a5);
     padding: 24px;
     text-align: center;
-    color: #3c2f00;
+    color: #ffffff;
   }
 
   .tabs {
@@ -870,7 +870,7 @@ export default class OrderHistory extends Vue {
     color: #606266;
 
     &.active {
-      background: #f8b500;
+      background: #2f8f83;
       color: #fff;
       font-weight: 600;
     }
@@ -893,7 +893,7 @@ export default class OrderHistory extends Vue {
 }
 
 .history-order-item.is-created {
-  box-shadow: 0 0 0 2px rgba(248, 181, 0, 0.55), 0 12px 24px rgba(248, 181, 0, 0.18);
+  box-shadow: 0 0 0 2px rgba(47, 143, 131, 0.42), 0 12px 24px rgba(47, 143, 131, 0.16);
 }
 
 .detail-dialog {
@@ -906,7 +906,7 @@ export default class OrderHistory extends Vue {
   gap: 12px 16px;
   padding: 16px;
   border-radius: 12px;
-  background: #fff9e8;
+  background: #eef7f3;
 }
 
 .detail-row {
@@ -983,7 +983,7 @@ export default class OrderHistory extends Vue {
   gap: 10px;
   padding: 14px 16px;
   border-radius: 12px;
-  background: #fff9e8;
+  background: #eef7f3;
 }
 
 .detail-amount-row {
@@ -1005,7 +1005,7 @@ export default class OrderHistory extends Vue {
 .review-content {
   padding: 16px;
   border-radius: 12px;
-  background: #fff9e8;
+  background: #eef7f3;
 }
 
 .review-order-brief {

@@ -1,20 +1,20 @@
-{
-  "name": "苍穹外卖",
-  "short_name": "Vue Ts Admin",
-  "icons": [
-    {
-      "src": "./img/icons/android-chrome-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "./img/icons/android-chrome-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    }
-  ],
-  "start_url": "./index.html",
-  "display": "standalone",
-  "background_color": "#fff",
-  "theme_color": "#4DBA87"
+﻿{
+    "name":  "社区老年助餐服务系统",
+    "short_name":  "助餐服务",
+    "icons":  [
+                  {
+                      "src":  "./img/icons/android-chrome-192x192.png?v=20260329",
+                      "sizes":  "192x192",
+                      "type":  "image/png"
+                  },
+                  {
+                      "src":  "./img/icons/android-chrome-512x512.png?v=20260329",
+                      "sizes":  "512x512",
+                      "type":  "image/png"
+                  }
+              ],
+    "start_url":  "./index.html",
+    "display":  "standalone",
+    "background_color":  "#fff",
+    "theme_color":  "#2F8F83"
 }

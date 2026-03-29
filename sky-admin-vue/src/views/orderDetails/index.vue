@@ -545,7 +545,7 @@ export default class OrderDispatch extends Vue {
   cursor: pointer;
 
   &.active {
-    background: #f8b500;
+    background: #2f8f83;
     color: #fff;
     font-weight: 600;
   }

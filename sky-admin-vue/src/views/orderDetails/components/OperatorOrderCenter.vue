@@ -714,8 +714,8 @@ export default class OperatorOrderCenter extends Vue {
   border: 1px solid transparent;
 
   &.active {
-    border-color: #f8b500;
-    box-shadow: 0 10px 20px rgba(248, 181, 0, 0.12);
+    border-color: #2f8f83;
+    box-shadow: 0 10px 20px rgba(47, 143, 131, 0.12);
   }
 }
 
@@ -772,7 +772,7 @@ export default class OperatorOrderCenter extends Vue {
   cursor: pointer;
 
   &.active {
-    background: #f8b500;
+    background: #2f8f83;
     color: #fff;
     font-weight: 600;
   }

@@ -261,7 +261,7 @@ export default class VolunteerOverviewPage extends Vue {
   min-width: 140px;
   padding: 14px 16px;
   border-radius: 12px;
-  background: #fff9e8;
+  background: #eef7f3;
 }
 
 .status-label {

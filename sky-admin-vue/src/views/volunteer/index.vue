@@ -371,10 +371,10 @@ export default class VolunteerTask extends Vue {
   transition: all 0.2s ease;
 
   &.active {
-    background: #f8b500;
+    background: #2f8f83;
     color: #fff;
     font-weight: 600;
-    box-shadow: 0 8px 18px rgba(248, 181, 0, 0.18);
+    box-shadow: 0 8px 18px rgba(47, 143, 131, 0.18);
   }
 }
 
@@ -412,7 +412,7 @@ export default class VolunteerTask extends Vue {
 .complete-dialog-card {
   padding: 18px;
   border-radius: 14px;
-  background: #fff9e8;
+  background: #eef7f3;
 }
 
 .complete-dialog-row {

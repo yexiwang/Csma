@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="社区老年助餐服务系统图标">
+  <rect x="24" y="24" width="464" height="464" rx="112" fill="#2F8F83"/>
+  <path d="M148 210H364" fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round"/>
+  <path d="M168 228C168 304 207 362 256 362C305 362 344 304 344 228Z" fill="#FFFFFF"/>
+  <rect x="218" y="370" width="76" height="20" rx="10" fill="#FFFFFF"/>
+</svg>

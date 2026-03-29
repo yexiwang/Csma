@@ -1,30 +1,30 @@
 /* Variables */
 
 // Base color
-$mine:#FFC200;
-$loginBg: #FFCFAC;
+$mine:#2F8F83;
+$loginBg: #D8EAE4;
 $blue:#2892E5;
-$green: #1DC779;
-$yellow:#FFB302;
+$green: #46A978;
+$yellow:#D09A43;
 $pink: #F56C6C;
 $block:#000;
-$gray-1: #20232A;
-$gray-2: #818693;
-$gray-3: #BAC0CD;
-$gray-4: #D8DDE3;
-$gray-5: #F3F4F7;
-$gray-6: #EBEEF5;
-$bgColor: #FAFAFB;
+$gray-1: #223430;
+$gray-2: #6B7D79;
+$gray-3: #A2B1AE;
+$gray-4: #D3DFDA;
+$gray-5: #F2F7F5;
+$gray-6: #E7F0EC;
+$bgColor: #F7FBF9;
 $white: #fff;
 
 // Sidebar
 $sideBarWidth: 190px;
-$subMenuBg:#272A36;
-$subMenuHover:#272A36;
+$subMenuBg:#1E3430;
+$subMenuHover:#26433E;
 $subMenuActiveText:#f4f4f5;
-$menuBg:#343744;
-$menuText:#bfcbd9;
-$menuActiveText:$mine; //Also see settings.sidebarTextTheme
+$menuBg:#26423C;
+$menuText:#C7D8D4;
+$menuActiveText:#1F3D37; //Also see settings.sidebarTextTheme
 
 // Login page
 $lightGray: #080808;
@@ -42,10 +42,10 @@ $loginCursorColor: #080808;
 .avatar-uploader .el-upload{
   // border: dashed 2px #D8DDE3 !important;
   border-radius: 4px !important;
-  background: #FCFCFC;
+  background: #F7FBF9;
 }
 .avatar-uploader .avatar-uploader-icon{
-  background: #FCFCFC;
+  background: #F7FBF9;
 }
 .avatar-uploader .el-icon-plus:before{
   content: '上传图片' !important;
@@ -59,7 +59,7 @@ $loginCursorColor: #080808;
   border-radius: 8px;
 }
 .el-dialog__header{
-  background: #FBFBFA;
+  background: #F4F8F6;
   border-radius: 8px 8px 0 0;
   border: none;
 }

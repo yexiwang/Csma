@@ -8,12 +8,16 @@
     @close="handleClose"
   >
     <div class="cart-drawer">
-      <div class="drawer-indicator"></div>
+      <div class="drawer-indicator" />
 
       <div class="drawer-header">
         <div>
-          <h3 class="drawer-title">购物车</h3>
-          <p class="drawer-subtitle">共 {{ summary.totalCount }} 份</p>
+          <h3 class="drawer-title">
+            购物车
+          </h3>
+          <p class="drawer-subtitle">
+            共 {{ summary.totalCount }} 份
+          </p>
         </div>
         <el-button
           type="text"
@@ -24,7 +28,7 @@
         </el-button>
       </div>
 
-      <div class="drawer-body" v-loading="syncing">
+      <div v-loading="syncing" class="drawer-body">
         <el-empty
           v-if="items.length === 0"
           description="购物车还是空的，先去选几份餐吧"
@@ -37,8 +41,12 @@
             class="cart-item"
           >
             <div class="item-info">
-              <div class="item-name">{{ item.name }}</div>
-              <div v-if="item.dishFlavor" class="item-flavor">{{ item.dishFlavor }}</div>
+              <div class="item-name">
+                {{ item.name }}
+              </div>
+              <div v-if="item.dishFlavor" class="item-flavor">
+                {{ item.dishFlavor }}
+              </div>
               <el-button
                 type="text"
                 size="mini"
@@ -50,7 +58,9 @@
               </el-button>
             </div>
 
-            <div class="item-price">￥{{ formatAmount(calculateCartItemSubtotal(item)) }}</div>
+            <div class="item-price">
+              ￥{{ formatAmount(calculateCartItemSubtotal(item)) }}
+            </div>
 
             <div class="quantity-control">
               <el-button
@@ -257,7 +267,7 @@ export default class CartDrawer extends Vue {
 .drawer-footer {
   padding: 16px 20px calc(16px + env(safe-area-inset-bottom));
   border-top: 1px solid #ebeef5;
-  background: #fffdf7;
+  background: #f4fbf8;
 }
 
 .summary-row {
