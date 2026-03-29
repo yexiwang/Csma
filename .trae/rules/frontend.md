@@ -1,3 +1,7 @@
+---
+alwaysApply: false
+description: 
+---
 # 社区助餐项目前端开发规则
 
 ## 1. 当前项目技术基线
