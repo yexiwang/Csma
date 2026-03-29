@@ -57,15 +57,15 @@ INSERT INTO `employee` (
 );
 
 INSERT INTO `user` (
-  `id`, `openid`, `username`, `password`, `role`, `status`, `name`, `phone`,
+  `id`, `username`, `password`, `role`, `status`, `name`, `phone`,
   `sex`, `id_number`, `avatar`, `create_time`
 ) VALUES
 (
-  9101, NULL, 'family_demo', MD5('123456'), 'FAMILY', 1, '张家属', '13800000021',
+  9101, 'family_demo', MD5('123456'), 'FAMILY', 1, '张家属', '13800000021',
   '1', '110101198001010021', NULL, '2026-03-18 09:10:00'
 ),
 (
-  9102, NULL, 'volunteer_demo', MD5('123456'), 'VOLUNTEER', 1, '李志愿', '13800000022',
+  9102, 'volunteer_demo', MD5('123456'), 'VOLUNTEER', 1, '李志愿', '13800000022',
   '1', '110101199501010022', NULL, '2026-03-18 09:11:00'
 );
 

@@ -231,7 +231,6 @@ CREATE TABLE `shopping_cart` (
 DROP TABLE IF EXISTS `user`;
 CREATE TABLE `user` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `openid` varchar(45) COLLATE utf8_bin DEFAULT NULL COMMENT '微信用户唯一标识',
   `name` varchar(32) COLLATE utf8_bin DEFAULT NULL COMMENT '姓名',
   `phone` varchar(11) COLLATE utf8_bin DEFAULT NULL COMMENT '手机号',
   `sex` varchar(2) COLLATE utf8_bin DEFAULT NULL COMMENT '性别',

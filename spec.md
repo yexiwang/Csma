@@ -75,6 +75,9 @@
 - `token`、`role`、`user_info` 会写入 cookie
 - 页面刷新后可从 cookie 恢复登录态和角色信息
 - 路由守卫继续按 `meta.roles` 控制访问
+- C 端当前统一使用账号密码登录
+- `POST /user/user/login` 不再支持基于 `code` 的微信登录分支
+- 登录返回体不再包含 `openid`
 
 ### 3.3 后端基础权限
 
@@ -137,6 +140,11 @@
 - 员工管理 `Employee`
 - 用户管理 `User`
 - 订单主表与订单明细
+
+说明：
+
+- `user` 表当前已移除 `openid`
+- `FAMILY / VOLUNTEER` 当前统一按 `username + password` 登录
 
 其中角色字段已按当前实现对齐为：
 
@@ -743,6 +751,8 @@
   - 将订单更新为 `2 待调度`
   - 将 `pay_status` 更新为 `1 已支付`
   - 写入 `checkout_time`
+- 当前支付主链路不再依赖 `user.openid`
+- 仓库内仍保留微信支付工具类与回调控制器作为历史兼容代码，但当前 Web 主流程未启用微信支付
   - 按 `orders.dining_point_id` 向对应助餐点在线 `OPERATOR` 推送 WebSocket 来单提醒
 - 前端当前已经不再把 `code = 0` 的下单或支付响应误当成成功。
 - 当前仍未完全收口的问题集中在 `/user/order/submit` 返回契约：

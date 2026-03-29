@@ -4,8 +4,8 @@
 <mapper namespace="com.sky.mapper.UserMapper">
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        insert into user(openid, username, password, role, status, name, phone, sex, id_number, avatar, create_time, update_time)
-        values(#{openid}, #{username}, #{password}, #{role}, #{status}, #{name}, #{phone}, #{sex}, #{idNumber}, #{avatar}, #{createTime}, #{updateTime})
+        insert into user(username, password, role, status, name, phone, sex, id_number, avatar, create_time, update_time)
+        values(#{username}, #{password}, #{role}, #{status}, #{name}, #{phone}, #{sex}, #{idNumber}, #{avatar}, #{createTime}, #{updateTime})
     </insert>
 
     <select id="countByMap" resultType="java.lang.Integer">

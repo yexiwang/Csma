@@ -19,9 +19,6 @@ public class UserLoginVO implements Serializable {
     @ApiModelProperty("主键值")
     private Long id;
 
-    @ApiModelProperty("用户唯一标识 OpenID")
-    private String openid;
-
     @ApiModelProperty("姓名")
     private String name;
 

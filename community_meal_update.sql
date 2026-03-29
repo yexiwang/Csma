@@ -1,10 +1,9 @@
 -- 社区老年助餐服务系统 - 数据库变更脚本
--- 基于 Sky Take Out (苍穹外卖) 数据库结构进行改造
-
+-- 基于 Sky Take Out 数据库结构进行改造
 USE `sky_take_out`;
 
 -- -----------------------------------------------------
--- 1. 新增表：dining_point (助餐点)
+-- 1. 新增表：dining_point（助餐点）
 -- -----------------------------------------------------
 DROP TABLE IF EXISTS `dining_point`;
 CREATE TABLE `dining_point` (
@@ -24,7 +23,7 @@ CREATE TABLE `dining_point` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='助餐点';
 
 -- -----------------------------------------------------
--- 2. 新增表：elderly (老人档案)
+-- 2. 新增表：elderly（老人档案）
 -- -----------------------------------------------------
 DROP TABLE IF EXISTS `elderly`;
 CREATE TABLE `elderly` (
@@ -48,7 +47,7 @@ CREATE TABLE `elderly` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='老人档案';
 
 -- -----------------------------------------------------
--- 3. 新增表：volunteer_stats (志愿者服务记录)
+-- 3. 新增表：volunteer_stats（志愿者服务记录）
 -- -----------------------------------------------------
 DROP TABLE IF EXISTS `volunteer_stats`;
 CREATE TABLE `volunteer_stats` (
@@ -65,16 +64,15 @@ CREATE TABLE `volunteer_stats` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='志愿者服务统计';
 
 -- -----------------------------------------------------
--- 4. 修改表：employee (员工表)
+-- 4. 修改表：employee（员工表）
 -- -----------------------------------------------------
--- 增加 dining_point_id 字段
 ALTER TABLE `employee` ADD COLUMN `dining_point_id` bigint DEFAULT NULL COMMENT '所属助餐点ID' AFTER `status`;
 
 -- -----------------------------------------------------
--- 5. 修改表：user (C端用户表)
+-- 5. 修改表：user（C端用户表）
 -- -----------------------------------------------------
 -- 增加账号密码登录支持及角色标识
-ALTER TABLE `user` ADD COLUMN `username` varchar(32) DEFAULT NULL COMMENT '登录账号' AFTER `openid`;
+ALTER TABLE `user` ADD COLUMN `username` varchar(32) DEFAULT NULL COMMENT '登录账号' AFTER `id`;
 ALTER TABLE `user` ADD COLUMN `password` varchar(64) DEFAULT NULL COMMENT '登录密码' AFTER `username`;
 ALTER TABLE `user` ADD COLUMN `role` varchar(20) DEFAULT 'FAMILY' COMMENT '角色: FAMILY(家属/老人), VOLUNTEER(志愿者)' AFTER `password`;
 ALTER TABLE `user` ADD COLUMN `status` int DEFAULT '1' COMMENT '状态 0:禁用 1:启用' AFTER `role`;
@@ -83,7 +81,7 @@ ALTER TABLE `user` ADD COLUMN `status` int DEFAULT '1' COMMENT '状态 0:禁用 
 -- UPDATE `user` SET `role` = 'FAMILY' WHERE `role` IS NULL;
 
 -- -----------------------------------------------------
--- 6. 修改表：orders (订单表)
+-- 6. 修改表：orders（订单表）
 -- -----------------------------------------------------
 -- 增加老人、志愿者、助餐点关联及补贴信息
 ALTER TABLE `orders` ADD COLUMN `elder_id` bigint DEFAULT NULL COMMENT '用餐老人ID' AFTER `user_id`;
@@ -94,7 +92,7 @@ ALTER TABLE `orders` ADD COLUMN `personal_pay` decimal(10,2) DEFAULT '0.00' COMM
 ALTER TABLE `orders` ADD COLUMN `expected_time` datetime DEFAULT NULL COMMENT '期望送达时间' AFTER `order_time`;
 
 -- -----------------------------------------------------
--- 7. 修改表：dish (菜品表)
+-- 7. 修改表：dish（菜品表）
 -- -----------------------------------------------------
 -- 增加助餐点关联及营养标签
 ALTER TABLE `dish` ADD COLUMN `dining_point_id` bigint DEFAULT NULL COMMENT '所属助餐点ID' AFTER `category_id`;

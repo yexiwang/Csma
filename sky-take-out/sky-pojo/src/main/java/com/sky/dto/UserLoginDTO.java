@@ -12,7 +12,7 @@ import java.io.Serializable;
 @Data
 @ApiModel(description = "C端登录时传递的数据模型")
 public class UserLoginDTO implements Serializable {
-    @ApiModelProperty("微信用户临时登录凭证")
+    @ApiModelProperty("历史兼容字段，当前不再支持微信 code 登录")
     private String code;
 
     @ApiModelProperty("用户名")

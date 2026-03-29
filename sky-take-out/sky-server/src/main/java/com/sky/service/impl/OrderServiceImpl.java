@@ -45,7 +45,6 @@ import com.sky.service.OrderService;
 import com.sky.service.support.FamilyCheckoutCalculator;
 import com.sky.service.support.VolunteerLevelSupport;
 import com.sky.utils.HttpClientUtil;
-import com.sky.utils.WeChatPayUtil;
 import com.sky.vo.OrderPaymentVO;
 import com.sky.vo.OrderReviewVO;
 import com.sky.vo.OrderStatisticsVO;
@@ -121,9 +120,6 @@ public class OrderServiceImpl implements OrderService {
     private DiningPointMapper diningPointMapper;
     @Autowired
     private FamilyCheckoutCalculator familyCheckoutCalculator;
-    @Autowired
-    private WeChatPayUtil weChatPayUtil;
-
     @Value("${sky.baidu.ak}")
     private String ak;
 

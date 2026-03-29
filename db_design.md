@@ -46,6 +46,9 @@
 
 说明：
 - `role='FAMILY'` 的 `user.name / user.phone` 也是家属档案页的主数据来源。
+- `user` 表当前已移除 `openid`。
+- `FAMILY / VOLUNTEER` 当前统一使用 `username + password` 登录。
+- `POST /user/user/login` 保留 `code` 仅作历史兼容入参；若仍传 `code`，后端会明确返回“当前系统已停用微信登录，请使用账号密码登录”。
 
 ### 3.2 employee
 
@@ -397,6 +400,8 @@
 - 历史订单“继续支付”和 `/notify/paySuccess` 当前都复用同一套 `paySuccess(orderNumber)` 逻辑。
 - 前端当前会对 `/user/order/submit` 和 `/user/order/payment` 的业务码做校验；若后端返回 `code = 0`，页面直接展示真实错误，不再误报“订单创建成功”。
 - `/user/order/payment` 当前只允许处理 `status = 1` 的待支付订单。
+- 当前模拟支付链路不依赖 `user.openid`，也不要求微信登录身份。
+- 仓库内仍保留微信支付工具类和回调控制器作为历史兼容代码，但当前 Web 主流程未启用微信支付。
 - 如果传入旧订单号、重复触发支付，或该订单已经被推进到非待支付状态，后端返回：
   - `订单状态错误`
   这属于当前状态保护逻辑。

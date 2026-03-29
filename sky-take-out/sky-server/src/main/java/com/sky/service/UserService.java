@@ -5,8 +5,6 @@ import com.sky.entity.User;
 
 public interface UserService {
 
-    User wxlogin(UserLoginDTO userLoginDTO);
-
     User login(UserLoginDTO userLoginDTO);
 
     void register(User user);

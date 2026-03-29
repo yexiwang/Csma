@@ -12,7 +12,10 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -31,14 +34,12 @@ public class UserController {
     @Autowired
     private JwtProperties jwtProperties;
 
-    @ApiOperation(value = "C端用户登录(微信/账号密码)")
+    @ApiOperation(value = "C端用户登录(账号密码)")
     @PostMapping("/login")
     public Result<UserLoginVO> login(@RequestBody UserLoginDTO userLoginDTO) {
         log.info("C端用户登录，请求参数：{}", userLoginDTO.getUsername());
 
-        User user = userLoginDTO.getCode() != null
-                ? userService.wxlogin(userLoginDTO)
-                : userService.login(userLoginDTO);
+        User user = userService.login(userLoginDTO);
 
         String role = user.getRole() == null || user.getRole().trim().isEmpty()
                 ? DEFAULT_USER_ROLE
@@ -54,7 +55,6 @@ public class UserController {
 
         UserLoginVO userLoginVO = UserLoginVO.builder()
                 .id(user.getId())
-                .openid(user.getOpenid())
                 .name(user.getName())
                 .role(role)
                 .token(token)
