@@ -67,6 +67,21 @@
           style="width: 320px"
           @change="handleQuery"
         />
+        <el-select
+          v-model="query.diningPointId"
+          placeholder="所属助餐点"
+          clearable
+          filterable
+          style="width: 180px"
+          @change="handleQuery"
+        >
+          <el-option
+            v-for="item in queryDiningPointOptions"
+            :key="item.id"
+            :label="item.name"
+            :value="item.id"
+          />
+        </el-select>
         <el-button type="primary" @click="handleQuery">
           查询
         </el-button>
@@ -239,6 +254,7 @@ import {
   rejectAdminOrder
 } from '@/api/adminOrder'
 import { AvailableVolunteerOption, getAvailableVolunteerList } from '@/api/adminVolunteer'
+import { DiningPointOption, getDiningPointList } from '@/api/diningPoint'
 import { ORDER_STATUS, getOrderStatusTag, getOrderStatusText } from '@/constants/order'
 import { UserModule } from '@/store/modules/user'
 import OperatorOrderCenter from './components/OperatorOrderCenter.vue'
@@ -266,8 +282,10 @@ export default class OrderDispatch extends Vue {
   private dateRange: string[] = []
   private query = {
     number: '',
-    phone: ''
+    phone: '',
+    diningPointId: undefined as number | undefined
   }
+  private queryDiningPointOptions: DiningPointOption[] = []
   private detailVisible = false
   private detailData: any = null
   private dispatchVisible = false
@@ -305,6 +323,7 @@ export default class OrderDispatch extends Vue {
     if (routeStatus) {
       this.currentStatus = Number(routeStatus)
     }
+    this.loadQueryDiningPointOptions()
     this.loadData()
   }
 
@@ -318,6 +337,16 @@ export default class OrderDispatch extends Vue {
 
   private getDisplayDiningPointName(order: any) {
     return order && order.diningPointName ? order.diningPointName : '历史订单未记录助餐点'
+  }
+
+  private async loadQueryDiningPointOptions() {
+    try {
+      const res = await getDiningPointList()
+      const data = res && res.data && res.data.data ? res.data.data : []
+      this.queryDiningPointOptions = Array.isArray(data) ? data : []
+    } catch (error) {
+      this.queryDiningPointOptions = []
+    }
   }
 
   private getOrderStatusTag(status: number) {
@@ -335,7 +364,8 @@ export default class OrderDispatch extends Vue {
           number: this.query.number || undefined,
           phone: this.query.phone || undefined,
           beginTime: this.dateRange[0] || undefined,
-          endTime: this.dateRange[1] || undefined
+          endTime: this.dateRange[1] || undefined,
+          diningPointId: this.query.diningPointId || undefined
         }),
         getAdminOrderStatistics()
       ])
@@ -363,6 +393,7 @@ export default class OrderDispatch extends Vue {
   private resetQuery() {
     this.query.number = ''
     this.query.phone = ''
+    this.query.diningPointId = undefined
     this.dateRange = []
     this.handleQuery()
   }

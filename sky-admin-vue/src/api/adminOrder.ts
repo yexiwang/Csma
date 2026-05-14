@@ -8,6 +8,7 @@ export interface AdminOrderQueryParams {
   phone?: string
   beginTime?: string
   endTime?: string
+  diningPointId?: number
 }
 
 export interface AdminOrderActionPayload {
