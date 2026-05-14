@@ -29,7 +29,6 @@
               v-if="order.status === ORDER_STATUS.PENDING_PAYMENT"
               size="mini"
               type="success"
-              :loading="payingOrderId === order.id"
               @click.stop="handleContinuePayment(order)"
             >
               继续支付
@@ -236,7 +235,6 @@
         <el-button
           v-if="detailData && detailData.status === ORDER_STATUS.PENDING_PAYMENT"
           type="success"
-          :loading="payingOrderId === detailData.id"
           @click="handleContinuePayment(detailData)"
         >
           继续支付
@@ -368,6 +366,51 @@
         </el-button>
       </div>
     </el-dialog>
+
+    <el-dialog
+      title="确认支付"
+      :visible.sync="paymentDialogVisible"
+      width="460px"
+      append-to-body
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
+      :show-close="false"
+    >
+      <div class="payment-dialog">
+        <div class="payment-icon-row">
+          <i class="el-icon-success" />
+        </div>
+        <div class="payment-text">
+          确认支付该订单
+        </div>
+        <div class="payment-info">
+          <div class="payment-info-row">
+            <span>订单号</span>
+            <span>{{ pendingPaymentOrder ? pendingPaymentOrder.orderNumber : '--' }}</span>
+          </div>
+          <div class="payment-info-row">
+            <span>待支付金额</span>
+            <span class="payment-amount">￥{{ pendingPaymentOrder ? Number(pendingPaymentOrder.payAmount || 0).toFixed(2) : '--' }}</span>
+          </div>
+        </div>
+        <div class="payment-hint">
+          订单将在15分钟内未支付时自动取消
+        </div>
+      </div>
+
+      <div slot="footer">
+        <el-button @click="handleSkipHistoryPayment">
+          暂不支付
+        </el-button>
+        <el-button
+          type="primary"
+          :loading="paying"
+          @click="handleConfirmHistoryPayment"
+        >
+          确认支付
+        </el-button>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -423,6 +466,9 @@ export default class OrderHistory extends Vue {
   private pageSize = 10
   private total = 0
   private payingOrderId: number | null = null
+  private paymentDialogVisible = false
+  private pendingPaymentOrder: { id: number; orderNumber: string; payAmount: number } | null = null
+  private paying = false
   private repeatingOrderId: number | null = null
   private highlightOrderId: number | null = null
   private createdOrderId: number | null = null
@@ -647,37 +693,19 @@ export default class OrderHistory extends Vue {
     }
   }
 
-  private async handleContinuePayment(order: Order) {
+  private handleContinuePayment(order: Order) {
     const orderNumber = order.number || order.orderNumber
     if (!orderNumber) {
       this.$message.warning('当前订单缺少订单号，无法继续支付')
       return
     }
 
-    this.payingOrderId = Number(order.id)
-    try {
-      await paymentOrder({
-        orderNumber,
-        payMethod: 1
-      })
-      this.$message.success('支付确认成功，订单已进入待调度')
-      await this.loadOrders()
-      await this.refreshDetailIfNeeded(Number(order.id))
-    } catch (error) {
-      const rawPaymentMessage = this.resolveErrorMessage(error, '')
-      const paymentErrorMessage = this.resolvePaymentErrorMessage(error)
-      if (rawPaymentMessage.includes('订单状态错误')) {
-        await this.loadOrders()
-        await this.refreshDetailIfNeeded(Number(order.id))
-        this.$message.warning(paymentErrorMessage)
-      } else if (paymentErrorMessage.includes('助餐点') && paymentErrorMessage.includes('休息')) {
-        this.$message.warning(paymentErrorMessage)
-      } else {
-        this.$message.error(paymentErrorMessage)
-      }
-    } finally {
-      this.payingOrderId = null
+    this.pendingPaymentOrder = {
+      id: Number(order.id),
+      orderNumber: orderNumber,
+      payAmount: Number(order.amount || 0)
     }
+    this.paymentDialogVisible = true
   }
 
   private async handleCancel(orderId: number) {
@@ -824,6 +852,42 @@ export default class OrderHistory extends Vue {
       ORDER_STATUS.DELIVERY_IN_PROGRESS
     ]
     return remindableStatusList.includes(status)
+  }
+
+  private async handleConfirmHistoryPayment() {
+    if (!this.pendingPaymentOrder) {
+      return
+    }
+    this.paying = true
+    try {
+      await paymentOrder({
+        orderNumber: this.pendingPaymentOrder.orderNumber,
+        payMethod: 1
+      })
+      this.paymentDialogVisible = false
+      this.$message.success('支付确认成功，订单已进入待调度')
+      await this.loadOrders()
+      await this.refreshDetailIfNeeded(this.pendingPaymentOrder.id)
+    } catch (error) {
+      const rawPaymentMessage = this.resolveErrorMessage(error, '')
+      const paymentErrorMessage = this.resolvePaymentErrorMessage(error)
+      if (rawPaymentMessage.includes('订单状态错误')) {
+        await this.loadOrders()
+        await this.refreshDetailIfNeeded(this.pendingPaymentOrder.id)
+        this.paymentDialogVisible = false
+        this.$message.warning(paymentErrorMessage)
+      } else if (paymentErrorMessage.includes('助餐点') && paymentErrorMessage.includes('休息')) {
+        this.$message.warning(paymentErrorMessage)
+      } else {
+        this.$message.error(paymentErrorMessage)
+      }
+    } finally {
+      this.paying = false
+    }
+  }
+
+  private handleSkipHistoryPayment() {
+    this.paymentDialogVisible = false
   }
 
   private resolveErrorMessage(error: any, fallbackMessage: string) {
@@ -1072,6 +1136,54 @@ export default class OrderHistory extends Vue {
     flex-direction: column;
     align-items: flex-start;
     gap: 6px;
+  }
+}
+
+.payment-dialog {
+  text-align: center;
+  padding: 20px 0;
+
+  .payment-icon-row {
+    margin-bottom: 16px;
+
+    .el-icon-success {
+      font-size: 56px;
+      color: #67c23a;
+    }
+  }
+
+  .payment-text {
+    font-size: 18px;
+    font-weight: 600;
+    color: #303133;
+    margin-bottom: 24px;
+  }
+
+  .payment-info {
+    background: #f5f7fa;
+    border-radius: 8px;
+    padding: 16px 24px;
+    margin-bottom: 16px;
+
+    .payment-info-row {
+      display: flex;
+      justify-content: space-between;
+      line-height: 32px;
+      font-size: 14px;
+      color: #606266;
+
+      .payment-amount {
+        font-size: 20px;
+        font-weight: 700;
+        color: #e6a23c;
+      }
+    }
+  }
+
+  .payment-hint {
+    font-size: 13px;
+    color: #909399;
+    margin-top: 8px;
   }
 }
 </style>

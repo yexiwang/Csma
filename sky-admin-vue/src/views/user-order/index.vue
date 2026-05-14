@@ -360,6 +360,51 @@
         </el-button>
       </div>
     </el-dialog>
+
+    <el-dialog
+      title="确认支付"
+      :visible.sync="paymentDialogVisible"
+      width="460px"
+      append-to-body
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
+      :show-close="false"
+    >
+      <div class="payment-dialog">
+        <div class="payment-icon-row">
+          <i class="el-icon-success" />
+        </div>
+        <div class="payment-text">
+          订单已创建，请确认支付
+        </div>
+        <div class="payment-info">
+          <div class="payment-info-row">
+            <span>订单号</span>
+            <span>{{ pendingOrder ? pendingOrder.orderNumber : '--' }}</span>
+          </div>
+          <div class="payment-info-row">
+            <span>待支付金额</span>
+            <span class="payment-amount">￥{{ pendingOrder ? Number(pendingOrder.payAmount || 0).toFixed(2) : '--' }}</span>
+          </div>
+        </div>
+        <div class="payment-hint">
+          订单将在15分钟内未支付时自动取消
+        </div>
+      </div>
+
+      <div slot="footer">
+        <el-button @click="handleSkipPayment">
+          暂不支付
+        </el-button>
+        <el-button
+          type="primary"
+          :loading="paying"
+          @click="handleConfirmPayment"
+        >
+          确认支付
+        </el-button>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -442,6 +487,9 @@ export default class UserOrder extends Vue {
   private cartDrawerVisible = false
   private submitting = false
   private suppressDraftSync = false
+  private paymentDialogVisible = false
+  private pendingOrder: { id: number; orderNumber: string; payAmount: number } | null = null
+  private paying = false
 
   private checkoutForm: CheckoutFormState = this.createDefaultCheckoutForm()
 
@@ -1325,15 +1373,6 @@ export default class UserOrder extends Vue {
         throw new Error('订单创建成功，但未返回有效订单信息')
       }
 
-      let paymentFailed = false
-      let paymentFailedMessage = ''
-      try {
-        await paymentOrder({ orderNumber, payMethod: 1 })
-      } catch (error) {
-        paymentFailed = true
-        paymentFailedMessage = this.resolvePaymentFollowupMessage(error)
-      }
-
       this.cartItems = []
       this.cartSummary = createEmptyCartSummary({
         elderId: this.selectedElderId,
@@ -1344,21 +1383,51 @@ export default class UserOrder extends Vue {
       this.clearCheckoutDraft()
       this.syncCheckoutContextWithSelectedElderly(true)
 
-      if (paymentFailed) {
-        this.$message.warning(paymentFailedMessage || '订单已创建，可在历史订单继续支付')
-      } else {
-        this.$message.success('下单成功')
+      this.pendingOrder = {
+        id: createdOrderId,
+        orderNumber: orderNumber,
+        payAmount: orderData.orderAmount ? Number(orderData.orderAmount) : 0
       }
-
-      await this.$router.push({
-        path: '/family-history',
-        query: { createdOrderId: String(createdOrderId) }
-      })
+      this.paymentDialogVisible = true
     } catch (error) {
       this.$message.error(this.resolveErrorMessage(error, '下单失败，请稍后重试'))
     } finally {
       this.submitting = false
     }
+  }
+
+  private async handleConfirmPayment() {
+    if (!this.pendingOrder) {
+      return
+    }
+    this.paying = true
+    try {
+      await paymentOrder({
+        orderNumber: this.pendingOrder.orderNumber,
+        payMethod: 1
+      })
+      this.paymentDialogVisible = false
+      this.$message.success('支付成功，订单已进入待调度')
+      await this.$router.push({
+        path: '/family-history',
+        query: { createdOrderId: String(this.pendingOrder.id) }
+      })
+    } catch (error) {
+      const message = this.resolvePaymentFollowupMessage(error)
+      this.$message.warning(message || '支付失败，请重试')
+    } finally {
+      this.paying = false
+    }
+  }
+
+  private async handleSkipPayment() {
+    this.paymentDialogVisible = false
+    const orderId = this.pendingOrder ? this.pendingOrder.id : undefined
+    this.$message.info('订单已创建，请在15分钟内完成支付')
+    await this.$router.push({
+      path: '/family-history',
+      query: orderId ? { createdOrderId: String(orderId) } : undefined
+    })
   }
 
   private handleResumeCheckoutRequest() {
@@ -1743,6 +1812,54 @@ export default class UserOrder extends Vue {
   .checkout-order-side {
     width: 100%;
     justify-content: space-between;
+  }
+}
+
+.payment-dialog {
+  text-align: center;
+  padding: 20px 0;
+
+  .payment-icon-row {
+    margin-bottom: 16px;
+
+    .el-icon-success {
+      font-size: 56px;
+      color: #67c23a;
+    }
+  }
+
+  .payment-text {
+    font-size: 18px;
+    font-weight: 600;
+    color: #303133;
+    margin-bottom: 24px;
+  }
+
+  .payment-info {
+    background: #f5f7fa;
+    border-radius: 8px;
+    padding: 16px 24px;
+    margin-bottom: 16px;
+
+    .payment-info-row {
+      display: flex;
+      justify-content: space-between;
+      line-height: 32px;
+      font-size: 14px;
+      color: #606266;
+
+      .payment-amount {
+        font-size: 20px;
+        font-weight: 700;
+        color: #e6a23c;
+      }
+    }
+  }
+
+  .payment-hint {
+    font-size: 13px;
+    color: #909399;
+    margin-top: 8px;
   }
 }
 </style>
