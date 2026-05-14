@@ -30,6 +30,7 @@
         >
           <source src="./../../../assets/reminder.mp3" type="audio/mp3">
         </audio>
+        <span class="diningPointName">{{ diningPointName }}</span>
         <span class="navicon operatingState" @click="handleStatus"><i />营业状态设置</span>
       </div>
       <div class="avatar-wrapper">
@@ -69,11 +70,11 @@
       <el-radio-group v-model="setStatus">
         <el-radio :label="1">
           营业中
-          <span>当前餐厅处于营业状态，自动接收任何订单，可点击打烊进入店铺打烊状态。</span>
+          <span>当前助餐点处于营业状态，自动接收订单，可点击打烊进入打烊状态。</span>
         </el-radio>
         <el-radio :label="0">
           打烊中
-          <span>当前餐厅处于打烊状态，仅接受营业时间内的预定订单，可点击营业中手动恢复营业状态。</span>
+          <span>当前助餐点处于打烊状态，仅接受营业时间内的预定订单，可点击营业中手动恢复营业状态。</span>
         </el-radio>
       </el-radio-group>
       <span slot="footer"
@@ -146,7 +147,11 @@ export default class extends Vue {
   }
 
   get canAccessShopStatus() {
-    return UserModule.roles.includes('ADMIN') || UserModule.roles.includes('OPERATOR')
+    return UserModule.roles.includes('OPERATOR')
+  }
+
+  get diningPointName() {
+    return (UserModule.userInfo as any).diningPointName || ''
   }
 
   getuserInfo() {
@@ -539,6 +544,13 @@ export default class extends Vue {
       background: url('./../../../assets/icons/time.png') no-repeat;
       background-size: contain;
     }
+  }
+  .diningPointName {
+    font-size: 14px;
+    color: #223430;
+    font-weight: 600;
+    margin-right: 12px;
+    line-height: 60px;
   }
   .mesCenter {
     i {

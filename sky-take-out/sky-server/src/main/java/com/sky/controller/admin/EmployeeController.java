@@ -4,10 +4,12 @@ import com.sky.constant.JwtClaimsConstant;
 import com.sky.dto.EmployeeDTO;
 import com.sky.dto.EmployeeLoginDTO;
 import com.sky.dto.EmployeePageQueryDTO;
+import com.sky.entity.DiningPoint;
 import com.sky.entity.Employee;
 import com.sky.properties.JwtProperties;
 import com.sky.result.PageResult;
 import com.sky.result.Result;
+import com.sky.service.DiningPointService;
 import com.sky.service.EmployeeService;
 import com.sky.utils.JwtUtil;
 import com.sky.vo.EmployeeLoginVO;
@@ -28,6 +30,9 @@ public class EmployeeController {
 
     @Autowired
     private EmployeeService employeeService;
+
+    @Autowired
+    private DiningPointService diningPointService;
 
     @Autowired
     private JwtProperties jwtProperties;
@@ -59,6 +64,13 @@ public class EmployeeController {
                 .diningPointId(employee.getDiningPointId())
                 .token(token)
                 .build();
+
+        if (employee.getDiningPointId() != null) {
+            DiningPoint diningPoint = diningPointService.getById(employee.getDiningPointId());
+            if (diningPoint != null) {
+                employeeLoginVO.setDiningPointName(diningPoint.getName());
+            }
+        }
 
         return Result.success(employeeLoginVO);
     }

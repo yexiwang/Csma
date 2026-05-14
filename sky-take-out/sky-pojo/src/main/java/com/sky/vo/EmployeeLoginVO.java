@@ -31,6 +31,9 @@ public class EmployeeLoginVO implements Serializable {
     @ApiModelProperty("助餐点ID")
     private Long diningPointId;
 
+    @ApiModelProperty("助餐点名称")
+    private String diningPointName;
+
     @ApiModelProperty("jwt令牌")
     private String token;
 }
