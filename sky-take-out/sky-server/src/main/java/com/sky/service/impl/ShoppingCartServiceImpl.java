@@ -7,11 +7,13 @@ import com.sky.dto.ShoppingCartDTO;
 import com.sky.entity.DiningPoint;
 import com.sky.entity.Dish;
 import com.sky.entity.Elderly;
+import com.sky.entity.Setmeal;
 import com.sky.entity.ShoppingCart;
 import com.sky.exception.ShoppingCartBusinessException;
 import com.sky.mapper.DiningPointMapper;
 import com.sky.mapper.DishMapper;
 import com.sky.mapper.ElderlyMapper;
+import com.sky.mapper.SetmealMapper;
 import com.sky.mapper.ShoppingCartMapper;
 import com.sky.service.ShoppingCartService;
 import com.sky.service.support.FamilyCheckoutCalculator;
@@ -38,6 +40,8 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
     @Autowired
     private DishMapper dishMapper;
     @Autowired
+    private SetmealMapper setmealMapper;
+    @Autowired
     private ElderlyMapper elderlyMapper;
     @Autowired
     private DiningPointMapper diningPointMapper;
@@ -50,19 +54,33 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
         Long userId = BaseContext.getCurrentId();
         Long elderId = requireTargetElderId(shoppingCartDTO.getElderId());
         Long dishId = shoppingCartDTO.getDishId();
-        if (dishId == null) {
-            throw new ShoppingCartBusinessException("当前版本暂不支持套餐点餐");
+        Long setmealId = shoppingCartDTO.getSetmealId();
+
+        if (dishId == null && setmealId == null) {
+            throw new ShoppingCartBusinessException("请选择菜品或套餐");
         }
 
         Elderly elderly = requireAccessibleElderly(elderId, userId);
         DiningPoint diningPoint = requireOrderableDiningPoint(elderly.getDiningPointId());
-        Dish dish = requireOrderableDish(dishId);
-        validateDishDiningPoint(dish, diningPoint.getId());
         ensureCartBinding(userId, elderId);
 
         ShoppingCart shoppingCart = new ShoppingCart();
         BeanUtils.copyProperties(shoppingCartDTO, shoppingCart);
         shoppingCart.setUserId(userId);
+
+        if (setmealId != null) {
+            Setmeal setmeal = requireOrderableSetmeal(setmealId);
+            validateSetmealDiningPoint(setmeal, diningPoint.getId());
+            shoppingCart.setName(setmeal.getName());
+            shoppingCart.setImage(setmeal.getImage());
+            shoppingCart.setAmount(setmeal.getPrice());
+        } else {
+            Dish dish = requireOrderableDish(dishId);
+            validateDishDiningPoint(dish, diningPoint.getId());
+            shoppingCart.setName(dish.getName());
+            shoppingCart.setImage(dish.getImage());
+            shoppingCart.setAmount(dish.getPrice());
+        }
 
         List<ShoppingCart> existingCartList = shoppingCartMapper.list(shoppingCart);
         if (!CollectionUtils.isEmpty(existingCartList)) {
@@ -72,9 +90,6 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
             return;
         }
 
-        shoppingCart.setName(dish.getName());
-        shoppingCart.setImage(dish.getImage());
-        shoppingCart.setAmount(dish.getPrice());
         shoppingCart.setNumber(1);
         shoppingCart.setCreateTime(LocalDateTime.now());
         shoppingCartMapper.insert(shoppingCart);
@@ -90,11 +105,20 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
 
         List<ShoppingCart> validCartList = new ArrayList<>();
         for (ShoppingCart cartItem : cartList) {
-            Dish dish = getValidFamilyCartDish(cartItem);
-            if (dish != null) {
-                cartItem.setDiningPointId(dish.getDiningPointId());
-                validCartList.add(cartItem);
-                continue;
+            if (cartItem.getSetmealId() != null) {
+                Setmeal setmeal = getValidFamilyCartSetmeal(cartItem);
+                if (setmeal != null) {
+                    cartItem.setDiningPointId(setmeal.getDiningPointId());
+                    validCartList.add(cartItem);
+                    continue;
+                }
+            } else {
+                Dish dish = getValidFamilyCartDish(cartItem);
+                if (dish != null) {
+                    cartItem.setDiningPointId(dish.getDiningPointId());
+                    validCartList.add(cartItem);
+                    continue;
+                }
             }
 
             log.warn("remove invalid shopping cart item, id={}, userId={}, dishId={}, setmealId={}",
@@ -246,7 +270,11 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
     private void validateCartDiningPoint(List<ShoppingCart> cartList, Long expectedDiningPointId) {
         for (ShoppingCart cartItem : cartList) {
             if (cartItem.getSetmealId() != null) {
-                throw new ShoppingCartBusinessException("当前版本暂不支持套餐点餐");
+                Setmeal setmeal = requireOrderableSetmeal(cartItem.getSetmealId());
+                if (!expectedDiningPointId.equals(setmeal.getDiningPointId())) {
+                    throw new ShoppingCartBusinessException("购物车套餐不属于当前老人对应助餐点");
+                }
+                continue;
             }
             if (cartItem.getDishId() == null) {
                 throw new ShoppingCartBusinessException("购物车菜品数据异常，请刷新后重试");
@@ -289,7 +317,7 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
     }
 
     private Dish getValidFamilyCartDish(ShoppingCart cartItem) {
-        if (cartItem.getId() == null || cartItem.getDishId() == null || cartItem.getSetmealId() != null) {
+        if (cartItem.getId() == null || cartItem.getDishId() == null) {
             return null;
         }
 
@@ -298,5 +326,42 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
             return null;
         }
         return dish;
+    }
+
+    private Setmeal getValidFamilyCartSetmeal(ShoppingCart cartItem) {
+        if (cartItem.getId() == null || cartItem.getSetmealId() == null) {
+            return null;
+        }
+
+        Setmeal setmeal = setmealMapper.getById(cartItem.getSetmealId());
+        if (setmeal == null || !StatusConstant.ENABLE.equals(setmeal.getStatus()) || setmeal.getDiningPointId() == null) {
+            return null;
+        }
+        return setmeal;
+    }
+
+    private Setmeal requireOrderableSetmeal(Long setmealId) {
+        Setmeal setmeal = setmealMapper.getById(setmealId);
+        if (setmeal == null) {
+            throw new ShoppingCartBusinessException("套餐不存在，无法加入购物车");
+        }
+        if (!StatusConstant.ENABLE.equals(setmeal.getStatus())) {
+            throw new ShoppingCartBusinessException("套餐已停售，无法加入购物车");
+        }
+        if (setmeal.getDiningPointId() == null) {
+            throw new ShoppingCartBusinessException("套餐未绑定助餐点，无法加入购物车");
+        }
+
+        DiningPoint diningPoint = diningPointMapper.getById(setmeal.getDiningPointId());
+        if (diningPoint == null || !StatusConstant.ENABLE.equals(diningPoint.getStatus())) {
+            throw new ShoppingCartBusinessException(MessageConstant.SETMEAL_DINING_POINT_UNAVAILABLE);
+        }
+        return setmeal;
+    }
+
+    private void validateSetmealDiningPoint(Setmeal setmeal, Long expectedDiningPointId) {
+        if (!expectedDiningPointId.equals(setmeal.getDiningPointId())) {
+            throw new ShoppingCartBusinessException("所选套餐不属于当前老人对应助餐点");
+        }
     }
 }

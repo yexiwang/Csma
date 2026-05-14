@@ -67,24 +67,59 @@
         <div class="panel-title">
           分类
         </div>
-        <div
-          v-for="category in visibleCategories"
-          :key="category.id"
-          :class="['category-item', { active: currentCategory === category.id }]"
-          @click="selectCategory(category.id)"
-        >
-          {{ category.name }}
+
+        <div class="mode-tabs">
+          <div
+            :class="['mode-tab', { active: orderingMode === 'category' }]"
+            @click="switchOrderingMode('category')"
+          >
+            分类
+          </div>
+          <div
+            :class="['mode-tab', { active: orderingMode === 'setmeal' }]"
+            @click="switchOrderingMode('setmeal')"
+          >
+            套餐
+          </div>
         </div>
 
-        <el-empty
-          v-if="!pageLoading && visibleCategories.length === 0"
-          description="当前助餐点暂无可用分类"
-          :image-size="80"
-        />
+        <template v-if="orderingMode === 'category'">
+          <div
+            v-for="category in visibleCategories"
+            :key="category.id"
+            :class="['category-item', { active: currentCategory === category.id }]"
+            @click="selectCategory(category.id)"
+          >
+            {{ category.name }}
+          </div>
+
+          <el-empty
+            v-if="!pageLoading && visibleCategories.length === 0"
+            description="当前助餐点暂无可用分类"
+            :image-size="80"
+          />
+        </template>
+
+        <template v-else>
+          <div
+            v-for="category in visibleSetmealCategories"
+            :key="category.id"
+            :class="['category-item', { active: currentSetmealCategory === category.id }]"
+            @click="selectSetmealCategory(category.id)"
+          >
+            {{ category.name }}
+          </div>
+
+          <el-empty
+            v-if="!pageLoading && visibleSetmealCategories.length === 0"
+            description="当前助餐点暂无可用套餐分类"
+            :image-size="80"
+          />
+        </template>
       </div>
 
       <div class="dish-panel">
-        <div class="dish-panel-header">
+        <div v-if="orderingMode === 'category'" class="dish-panel-header">
           <div>
             <div class="panel-title">
               {{ currentCategoryName }}
@@ -98,7 +133,21 @@
           </div>
         </div>
 
-        <div v-if="currentDishes.length > 0" class="dish-grid">
+        <div v-else class="dish-panel-header">
+          <div>
+            <div class="panel-title">
+              {{ currentSetmealCategoryName }}
+            </div>
+            <div class="dish-panel-subtitle">
+              {{ selectedDiningPointName || '未绑定助餐点' }}
+            </div>
+          </div>
+          <div class="dish-panel-meta">
+            共 {{ allSetmeals.length }} 个可售套餐
+          </div>
+        </div>
+
+        <div v-if="orderingMode === 'category' && currentDishes.length > 0" class="dish-grid">
           <dish-card
             v-for="dish in currentDishes"
             :key="dish.id"
@@ -122,6 +171,33 @@
               </div>
             </template>
           </dish-card>
+        </div>
+
+        <div v-else-if="orderingMode === 'setmeal' && currentSetmeals.length > 0" class="dish-grid">
+          <setmeal-card
+            v-for="setmeal in currentSetmeals"
+            :key="setmeal.id"
+            :setmeal="setmeal"
+            @detail="openSetmealDetail"
+          >
+            <template #actions>
+              <div class="quantity-control">
+                <el-button
+                  size="mini"
+                  icon="el-icon-minus"
+                  :disabled="getSetmealCartQuantity(setmeal.id) === 0 || cartSyncing"
+                  @click="decreaseSetmealQuantity(setmeal)"
+                />
+                <span class="quantity">{{ getSetmealCartQuantity(setmeal.id) }}</span>
+                <el-button
+                  size="mini"
+                  icon="el-icon-plus"
+                  :disabled="cartSyncing || !canAddDish"
+                  @click="increaseSetmealQuantity(setmeal)"
+                />
+              </div>
+            </template>
+          </setmeal-card>
         </div>
 
         <el-empty
@@ -405,16 +481,77 @@
         </el-button>
       </div>
     </el-dialog>
+
+    <el-dialog
+      :title="setmealDetailDialogTitle"
+      :visible.sync="setmealDetailVisible"
+      width="560px"
+      append-to-body
+      @close="closeSetmealDetail"
+    >
+      <div v-if="selectedSetmealDetail" v-loading="setmealDetailLoading" class="setmeal-detail-dialog">
+        <div class="setmeal-detail-header">
+          <img
+            :src="selectedSetmealDetail.image"
+            :alt="selectedSetmealDetail.name"
+            class="setmeal-detail-image"
+          />
+          <div class="setmeal-detail-info">
+            <h2 class="setmeal-detail-name">{{ selectedSetmealDetail.name }}</h2>
+            <p class="setmeal-detail-description">{{ selectedSetmealDetail.description || '暂无套餐描述' }}</p>
+            <div class="setmeal-detail-price">￥{{ formatSetmealPrice(selectedSetmealDetail.price) }}</div>
+          </div>
+        </div>
+
+        <div v-if="setmealDetailDishes.length > 0" class="setmeal-detail-section">
+          <div class="setmeal-detail-section-title">套餐内容</div>
+          <div class="setmeal-detail-dish-list">
+            <div
+              v-for="(item, index) in setmealDetailDishes"
+              :key="index"
+              class="setmeal-detail-dish-item"
+            >
+              <img
+                v-if="item.image"
+                :src="item.image"
+                :alt="item.name"
+                class="setmeal-detail-dish-image"
+              />
+              <div class="setmeal-detail-dish-body">
+                <span class="setmeal-detail-dish-name">{{ item.name }}</span>
+                <span v-if="item.description" class="setmeal-detail-dish-desc">{{ item.description }}</span>
+              </div>
+              <span class="setmeal-detail-dish-copies">x{{ item.copies }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div slot="footer">
+        <el-button @click="setmealDetailVisible = false">
+          取消
+        </el-button>
+        <el-button
+          type="primary"
+          :disabled="!canAddDish || cartSyncing"
+          :loading="cartSyncing"
+          @click="addSetmealFromDetail"
+        >
+          加入购物车
+        </el-button>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script lang="ts">
 import { Component, Vue, Watch } from 'vue-property-decorator'
 import DishCard from '@/components/order/DishCard.vue'
+import SetmealCard from '@/components/order/SetmealCard.vue'
 import CartBar from '@/components/order/cartBar.vue'
 import CartDrawer from '@/components/order/CartDrawer.vue'
 import { AddressBook, getAddressBookList } from '@/api/addressBook'
-import { Category, Dish, Elderly, getFamilyCategoryList, getFamilyDishList, getMyElderlyList } from '@/api/family'
+import { Category, Dish, Elderly, Setmeal, SetmealDishItem, getFamilyCategoryList, getFamilyDishList, getFamilySetmealList, getMyElderlyList, getSetmealDetail } from '@/api/family'
 import { OrderSubmitResponse, paymentOrder, submitOrder } from '@/api/order'
 import {
   ShoppingCartItem,
@@ -443,7 +580,9 @@ import {
 import {
   CartSummary,
   DishQuantityMap,
+  SetmealQuantityMap,
   buildDishQuantityMap,
+  buildSetmealQuantityMap,
   calculateCartItemSubtotal,
   createEmptyCartSummary,
   formatAmount,
@@ -464,7 +603,7 @@ interface CheckoutFormState {
 
 @Component({
   name: 'UserOrder',
-  components: { DishCard, CartBar, CartDrawer }
+  components: { DishCard, SetmealCard, CartBar, CartDrawer }
 })
 export default class UserOrder extends Vue {
   private categories: Category[] = []
@@ -492,6 +631,19 @@ export default class UserOrder extends Vue {
   private paying = false
 
   private checkoutForm: CheckoutFormState = this.createDefaultCheckoutForm()
+
+  private orderingMode: 'category' | 'setmeal' = 'category'
+  private allSetmeals: Setmeal[] = []
+  private visibleSetmealCategories: Category[] = []
+  private setmealCategoryMap: Record<number, Setmeal[]> = {}
+  private currentSetmealCategory: number | null = null
+  private currentSetmeals: Setmeal[] = []
+  private setmealLoading = false
+
+  private setmealDetailVisible = false
+  private selectedSetmealDetail: Setmeal | null = null
+  private setmealDetailDishes: SetmealDishItem[] = []
+  private setmealDetailLoading = false
 
   private readonly deliveryTimePickerOptions = {
     disabledDate: (time: Date) => time.getTime() < Date.now() - 60 * 1000
@@ -552,6 +704,19 @@ export default class UserOrder extends Vue {
 
   get dishQuantityMap(): DishQuantityMap {
     return buildDishQuantityMap(this.cartItems)
+  }
+
+  get setmealQuantityMap(): SetmealQuantityMap {
+    return buildSetmealQuantityMap(this.cartItems)
+  }
+
+  get currentSetmealCategoryName() {
+    const cat = this.visibleSetmealCategories.find((item) => Number(item.id) === this.currentSetmealCategory)
+    return cat ? cat.name : '当前套餐'
+  }
+
+  get setmealDetailDialogTitle() {
+    return this.selectedSetmealDetail ? this.selectedSetmealDetail.name : '套餐详情'
   }
 
   get cartElderId() {
@@ -735,7 +900,7 @@ export default class UserOrder extends Vue {
       const response = await getFamilyCategoryList()
       const payload = this.extractPayload<Category[]>(response)
       this.categories = Array.isArray(payload)
-        ? payload.filter((item) => item && (item.type === 1 || item.type === undefined))
+        ? payload.filter((item) => item && item.type !== undefined)
         : []
     } catch (error) {
       this.categories = []
@@ -980,6 +1145,7 @@ export default class UserOrder extends Vue {
     } finally {
       this.dishLoading = false
     }
+    this.loadSetmealsForDiningPoint(diningPointId)
   }
 
   private applyDishList(dishes: Dish[], preserveCurrentCategory = true) {
@@ -1022,12 +1188,75 @@ export default class UserOrder extends Vue {
     return dish.categoryId !== undefined && dish.categoryId !== null ? Number(dish.categoryId) : -1
   }
 
+  private async loadSetmealsForDiningPoint(diningPointId: number) {
+    this.setmealLoading = true
+    try {
+      const response = await getFamilySetmealList({ diningPointId })
+      const payload = this.extractPayload<Setmeal[]>(response)
+      this.applySetmealList(Array.isArray(payload) ? payload : [])
+    } catch (error) {
+      this.resetSetmealData()
+    } finally {
+      this.setmealLoading = false
+    }
+  }
+
+  private applySetmealList(setmeals: Setmeal[]) {
+    this.allSetmeals = setmeals
+    const categoryMap: Record<number, Setmeal[]> = {}
+    const visibleCategories: Category[] = []
+    const knownCategoryIds = new Set<number>()
+    const categoryIdsInSetmealList = Array.from(new Set(setmeals.map((s) => Number(s.categoryId)).filter((id) => !isNaN(id))))
+
+    this.categories
+      .filter((category) => category.type === 2 && categoryIdsInSetmealList.includes(Number(category.id)))
+      .forEach((category) => {
+        const categoryId = Number(category.id)
+        knownCategoryIds.add(categoryId)
+        visibleCategories.push({ id: categoryId, name: category.name, type: category.type })
+      })
+
+    setmeals.forEach((setmeal) => {
+      const categoryId = Number(setmeal.categoryId)
+      if (!categoryMap[categoryId]) {
+        categoryMap[categoryId] = []
+      }
+      categoryMap[categoryId].push(setmeal)
+      if (!knownCategoryIds.has(categoryId)) {
+        knownCategoryIds.add(categoryId)
+        visibleCategories.push({ id: categoryId, name: setmeal.categoryName || '未分类' })
+      }
+    })
+
+    this.visibleSetmealCategories = visibleCategories
+    this.setmealCategoryMap = categoryMap
+    const nextCategoryId = visibleCategories.length > 0 ? Number(visibleCategories[0].id) : null
+    this.currentSetmealCategory = nextCategoryId
+    this.currentSetmeals = nextCategoryId !== null ? (categoryMap[nextCategoryId] || []) : []
+  }
+
   private resetDishData() {
     this.allAvailableDishes = []
     this.visibleCategories = []
     this.categoryDishMap = {}
     this.currentCategory = null
     this.currentDishes = []
+    this.resetSetmealData()
+  }
+
+  private resetSetmealData() {
+    this.allSetmeals = []
+    this.visibleSetmealCategories = []
+    this.setmealCategoryMap = {}
+    this.currentSetmealCategory = null
+    this.currentSetmeals = []
+  }
+
+  private switchOrderingMode(mode: 'category' | 'setmeal') {
+    if (this.orderingMode === mode) {
+      return
+    }
+    this.orderingMode = mode
   }
 
   private selectCategory(categoryId: number) {
@@ -1038,8 +1267,20 @@ export default class UserOrder extends Vue {
     this.currentDishes = this.categoryDishMap[categoryId] || []
   }
 
+  private selectSetmealCategory(categoryId: number) {
+    if (this.currentSetmealCategory === categoryId) {
+      return
+    }
+    this.currentSetmealCategory = categoryId
+    this.currentSetmeals = this.setmealCategoryMap[categoryId] || []
+  }
+
   private getCartQuantity(dishId: number) {
     return this.dishQuantityMap[dishId] || 0
+  }
+
+  private getSetmealCartQuantity(setmealId: number) {
+    return this.setmealQuantityMap[setmealId] || 0
   }
 
   private async increaseQuantity(dish: Dish) {
@@ -1062,6 +1303,22 @@ export default class UserOrder extends Vue {
   }
 
   private async increaseQuantityByCartItem(item: ShoppingCartItem) {
+    if (item.setmealId !== undefined && item.setmealId !== null) {
+      const elderId = item.elderId || this.requireCartActionElderId()
+      if (!elderId) {
+        return
+      }
+      this.cartSyncing = true
+      try {
+        await addShoppingCart({ elderId, setmealId: item.setmealId, dishFlavor: item.dishFlavor })
+        await this.refreshCartState()
+      } catch (error) {
+        this.$message.error(this.resolveErrorMessage(error, '购物车更新失败，请稍后重试'))
+      } finally {
+        this.cartSyncing = false
+      }
+      return
+    }
     if (item.dishId === undefined || item.dishId === null) {
       return
     }
@@ -1096,7 +1353,91 @@ export default class UserOrder extends Vue {
     }
   }
 
+  private async increaseSetmealQuantity(setmeal: Setmeal) {
+    if (!this.ensureDishCanBeAdded()) {
+      return
+    }
+    const elderId = this.requireCartActionElderId()
+    if (!elderId) {
+      return
+    }
+    this.cartSyncing = true
+    try {
+      await addShoppingCart({ elderId, setmealId: setmeal.id })
+      await this.refreshCartState()
+    } catch (error) {
+      this.$message.error(this.resolveErrorMessage(error, '加入购物车失败，请稍后重试'))
+    } finally {
+      this.cartSyncing = false
+    }
+  }
+
+  private async decreaseSetmealQuantity(setmeal: Setmeal) {
+    const elderId = this.requireCartActionElderId()
+    if (!elderId) {
+      return
+    }
+    this.cartSyncing = true
+    try {
+      await subShoppingCart({ elderId, setmealId: setmeal.id })
+      await this.refreshCartState()
+    } catch (error) {
+      this.$message.error(this.resolveErrorMessage(error, '减少套餐失败，请稍后重试'))
+    } finally {
+      this.cartSyncing = false
+    }
+  }
+
+  private async openSetmealDetail(setmeal: Setmeal) {
+    this.selectedSetmealDetail = setmeal
+    this.setmealDetailDishes = []
+    this.setmealDetailVisible = true
+    this.setmealDetailLoading = true
+    try {
+      const response = await getSetmealDetail(setmeal.id)
+      const payload = this.extractPayload<SetmealDishItem[]>(response)
+      this.setmealDetailDishes = Array.isArray(payload) ? payload : []
+    } catch (error) {
+      this.setmealDetailDishes = []
+    } finally {
+      this.setmealDetailLoading = false
+    }
+  }
+
+  private closeSetmealDetail() {
+    this.selectedSetmealDetail = null
+    this.setmealDetailDishes = []
+  }
+
+  private async addSetmealFromDetail() {
+    if (!this.selectedSetmealDetail) {
+      return
+    }
+    this.setmealDetailVisible = false
+    await this.increaseSetmealQuantity(this.selectedSetmealDetail)
+  }
+
+  private formatSetmealPrice(price: number) {
+    return Number(price || 0).toFixed(2)
+  }
+
   private async decreaseQuantityByCartItem(item: ShoppingCartItem) {
+    if (item.setmealId !== undefined && item.setmealId !== null) {
+      const elderId = item.elderId || this.requireCartActionElderId()
+      if (!elderId) {
+        return
+      }
+      this.cartSyncing = true
+      try {
+        await subShoppingCart({ elderId, setmealId: item.setmealId, dishFlavor: item.dishFlavor })
+        await this.refreshCartState()
+      } catch (error) {
+        this.$message.error(this.resolveErrorMessage(error, '购物车更新失败，请稍后重试'))
+      } finally {
+        this.cartSyncing = false
+      }
+      return
+    }
     if (item.dishId === undefined || item.dishId === null) {
       return
     }
@@ -1116,6 +1457,22 @@ export default class UserOrder extends Vue {
   }
 
   private async removeCartItem(item: ShoppingCartItem) {
+    if (item.setmealId !== undefined && item.setmealId !== null) {
+      const elderId = item.elderId || this.requireCartActionElderId()
+      if (!elderId) {
+        return
+      }
+      this.cartSyncing = true
+      try {
+        await removeShoppingCart({ elderId, setmealId: item.setmealId, dishFlavor: item.dishFlavor })
+        await this.refreshCartState()
+      } catch (error) {
+        this.$message.error(this.resolveErrorMessage(error, '删除套餐失败，请稍后重试'))
+      } finally {
+        this.cartSyncing = false
+      }
+      return
+    }
     if (item.dishId === undefined || item.dishId === null) {
       return
     }
@@ -1625,6 +1982,31 @@ export default class UserOrder extends Vue {
   padding: 18px 16px;
 }
 
+.mode-tabs {
+  display: flex;
+  margin-top: 12px;
+  background: #f5f7fa;
+  border-radius: 10px;
+  padding: 3px;
+}
+
+.mode-tab {
+  flex: 1;
+  text-align: center;
+  padding: 8px 0;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #606266;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+
+  &.active {
+    background: #2f8f83;
+    color: #fff;
+    font-weight: 600;
+  }
+}
+
 .panel-title,
 .section-title {
   color: #303133;
@@ -1860,6 +2242,109 @@ export default class UserOrder extends Vue {
     font-size: 13px;
     color: #909399;
     margin-top: 8px;
+  }
+}
+
+.setmeal-detail-dialog {
+  .setmeal-detail-header {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    margin-bottom: 20px;
+  }
+
+  .setmeal-detail-image {
+    width: 200px;
+    height: 150px;
+    border-radius: 12px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  .setmeal-detail-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .setmeal-detail-name {
+    margin: 0 0 8px;
+    font-size: 20px;
+    font-weight: 600;
+    color: #303133;
+  }
+
+  .setmeal-detail-description {
+    margin: 0 0 12px;
+    color: #909399;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .setmeal-detail-price {
+    font-size: 24px;
+    font-weight: 700;
+    color: #e94f4f;
+  }
+
+  .setmeal-detail-section {
+    padding-top: 16px;
+    border-top: 1px solid #f2f6fc;
+  }
+
+  .setmeal-detail-section-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #303133;
+    margin-bottom: 12px;
+  }
+
+  .setmeal-detail-dish-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .setmeal-detail-dish-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: #f8faf9;
+    border-radius: 10px;
+  }
+
+  .setmeal-detail-dish-image {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  .setmeal-detail-dish-body {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .setmeal-detail-dish-name {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: #303133;
+  }
+
+  .setmeal-detail-dish-desc {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+    color: #909399;
+  }
+
+  .setmeal-detail-dish-copies {
+    font-size: 14px;
+    font-weight: 600;
+    color: #2f8f83;
+    flex-shrink: 0;
   }
 }
 </style>

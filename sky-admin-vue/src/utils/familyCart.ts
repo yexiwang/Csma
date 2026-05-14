@@ -93,6 +93,19 @@ export function normalizeShoppingCartItems(payload: unknown): ShoppingCartItem[]
   }))
 }
 
+export type SetmealQuantityMap = Record<number, number>
+
+export function buildSetmealQuantityMap(items: ShoppingCartItem[]): SetmealQuantityMap {
+  return items.reduce((quantityMap, item) => {
+    if (item.setmealId === undefined || item.setmealId === null) {
+      return quantityMap
+    }
+    const key = Number(item.setmealId)
+    quantityMap[key] = (quantityMap[key] || 0) + Math.max(0, Number(item.number || 0))
+    return quantityMap
+  }, {} as SetmealQuantityMap)
+}
+
 export function buildDishQuantityMap(items: ShoppingCartItem[]): DishQuantityMap {
   return items.reduce((quantityMap, item) => {
     if (item.dishId === undefined || item.dishId === null) {

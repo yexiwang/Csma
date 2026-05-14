@@ -23,6 +23,7 @@ import com.sky.entity.Elderly;
 import com.sky.entity.OrderDetail;
 import com.sky.entity.OrderReview;
 import com.sky.entity.Orders;
+import com.sky.entity.Setmeal;
 import com.sky.entity.ShoppingCart;
 import com.sky.entity.User;
 import com.sky.entity.DiningPoint;
@@ -37,6 +38,7 @@ import com.sky.mapper.ElderlyMapper;
 import com.sky.mapper.OrderDetailMapper;
 import com.sky.mapper.OrderMapper;
 import com.sky.mapper.OrderReviewMapper;
+import com.sky.mapper.SetmealMapper;
 import com.sky.mapper.ShoppingCartMapper;
 import com.sky.mapper.UserMapper;
 import com.sky.mapper.VolunteerStatsMapper;
@@ -116,6 +118,8 @@ public class OrderServiceImpl implements OrderService {
     private ElderlyMapper elderlyMapper;
     @Autowired
     private DishMapper dishMapper;
+    @Autowired
+    private SetmealMapper setmealMapper;
     @Autowired
     private DiningPointMapper diningPointMapper;
     @Autowired
@@ -1168,7 +1172,20 @@ public class OrderServiceImpl implements OrderService {
     private void validateShoppingCartDishesForElderlyDiningPoint(List<ShoppingCart> shoppingCartList, Long expectedDiningPointId) {
         for (ShoppingCart cart : shoppingCartList) {
             if (cart.getSetmealId() != null) {
-                throw new OrderBusinessException("当前版本暂不支持套餐下单");
+                Setmeal setmeal = setmealMapper.getById(cart.getSetmealId());
+                if (setmeal == null) {
+                    throw new OrderBusinessException("购物车中存在已删除套餐，无法提交订单");
+                }
+                if (!StatusConstant.ENABLE.equals(setmeal.getStatus())) {
+                    throw new OrderBusinessException("购物车中存在已停售套餐，无法提交订单");
+                }
+                if (setmeal.getDiningPointId() == null) {
+                    throw new OrderBusinessException("所选套餐未绑定助餐点，无法提交订单");
+                }
+                if (!expectedDiningPointId.equals(setmeal.getDiningPointId())) {
+                    throw new OrderBusinessException("所选套餐不属于当前老人对应助餐点");
+                }
+                continue;
             }
             if (cart.getDishId() == null) {
                 throw new OrderBusinessException("购物车菜品数据异常，无法提交订单");
@@ -1211,7 +1228,35 @@ public class OrderServiceImpl implements OrderService {
 
         for (OrderDetail detail : orderDetailList) {
             if (detail.getSetmealId() != null) {
-                throw new OrderBusinessException("当前版本暂不支持套餐再来一单");
+                Setmeal setmeal = setmealMapper.getById(detail.getSetmealId());
+                if (setmeal == null) {
+                    throw new OrderBusinessException("部分套餐已删除，无法再来一单");
+                }
+                if (!StatusConstant.ENABLE.equals(setmeal.getStatus())) {
+                    throw new OrderBusinessException("部分套餐已下架，无法再来一单");
+                }
+                if (setmeal.getDiningPointId() == null) {
+                    throw new OrderBusinessException("部分套餐未绑定助餐点，无法再来一单");
+                }
+
+                if (currentDiningPointId == null) {
+                    currentDiningPointId = setmeal.getDiningPointId();
+                } else if (!currentDiningPointId.equals(setmeal.getDiningPointId())) {
+                    throw new OrderBusinessException("当前订单菜品所属助餐点已变化，无法再来一单");
+                }
+
+                ShoppingCart shoppingCart = new ShoppingCart();
+                shoppingCart.setUserId(userId);
+                shoppingCart.setElderId(elderId);
+                shoppingCart.setSetmealId(detail.getSetmealId());
+                shoppingCart.setDishFlavor(detail.getDishFlavor());
+                shoppingCart.setName(setmeal.getName());
+                shoppingCart.setImage(setmeal.getImage());
+                shoppingCart.setAmount(setmeal.getPrice());
+                shoppingCart.setNumber(detail.getNumber());
+                shoppingCart.setCreateTime(LocalDateTime.now());
+                shoppingCartList.add(shoppingCart);
+                continue;
             }
             if (detail.getDishId() == null) {
                 throw new OrderBusinessException("订单菜品数据异常，无法再来一单");
@@ -1325,7 +1370,25 @@ public class OrderServiceImpl implements OrderService {
     private void validateShoppingCartItemsForOrder(List<ShoppingCart> shoppingCartList, Long expectedDiningPointId) {
         for (ShoppingCart cart : shoppingCartList) {
             if (cart.getSetmealId() != null) {
-                throw new OrderBusinessException("当前版本暂不支持套餐下单");
+                Setmeal setmeal = setmealMapper.getById(cart.getSetmealId());
+                if (setmeal == null) {
+                    throw new OrderBusinessException("购物车中存在已删除套餐，无法提交订单");
+                }
+                if (!StatusConstant.ENABLE.equals(setmeal.getStatus())) {
+                    throw new OrderBusinessException("购物车中存在已停售套餐，无法提交订单");
+                }
+                if (setmeal.getDiningPointId() == null) {
+                    throw new OrderBusinessException("所选套餐未绑定助餐点，无法提交订单");
+                }
+
+                DiningPoint setmealDiningPoint = diningPointMapper.getById(setmeal.getDiningPointId());
+                if (setmealDiningPoint == null || !StatusConstant.ENABLE.equals(setmealDiningPoint.getStatus())) {
+                    throw new OrderBusinessException(MessageConstant.SETMEAL_DINING_POINT_UNAVAILABLE);
+                }
+                if (!expectedDiningPointId.equals(setmeal.getDiningPointId())) {
+                    throw new OrderBusinessException("所选套餐不属于当前老人对应助餐点");
+                }
+                continue;
             }
             if (cart.getDishId() == null) {
                 throw new OrderBusinessException("购物车菜品数据异常，无法提交订单");
@@ -1357,7 +1420,37 @@ public class OrderServiceImpl implements OrderService {
 
         for (OrderDetail detail : orderDetailList) {
             if (detail.getSetmealId() != null) {
-                throw new OrderBusinessException("当前版本暂不支持套餐再来一单");
+                Setmeal setmeal = setmealMapper.getById(detail.getSetmealId());
+                if (setmeal == null) {
+                    throw new OrderBusinessException("部分套餐已删除，无法再来一单");
+                }
+                if (!StatusConstant.ENABLE.equals(setmeal.getStatus())) {
+                    throw new OrderBusinessException("部分套餐已下架，无法再来一单");
+                }
+                if (setmeal.getDiningPointId() == null) {
+                    throw new OrderBusinessException("部分套餐未绑定助餐点，无法再来一单");
+                }
+
+                DiningPoint setmealDiningPoint = diningPointMapper.getById(setmeal.getDiningPointId());
+                if (setmealDiningPoint == null || !StatusConstant.ENABLE.equals(setmealDiningPoint.getStatus())) {
+                    throw new OrderBusinessException(MessageConstant.SETMEAL_DINING_POINT_UNAVAILABLE);
+                }
+                if (!expectedDiningPointId.equals(setmeal.getDiningPointId())) {
+                    throw new OrderBusinessException("当前订单套餐已不属于老人当前所属助餐点，无法再来一单");
+                }
+
+                ShoppingCart shoppingCart = new ShoppingCart();
+                shoppingCart.setUserId(userId);
+                shoppingCart.setElderId(elderId);
+                shoppingCart.setSetmealId(detail.getSetmealId());
+                shoppingCart.setDishFlavor(detail.getDishFlavor());
+                shoppingCart.setName(setmeal.getName());
+                shoppingCart.setImage(setmeal.getImage());
+                shoppingCart.setAmount(setmeal.getPrice());
+                shoppingCart.setNumber(detail.getNumber());
+                shoppingCart.setCreateTime(LocalDateTime.now());
+                shoppingCartList.add(shoppingCart);
+                continue;
             }
             if (detail.getDishId() == null) {
                 throw new OrderBusinessException("订单菜品数据异常，无法再来一单");
