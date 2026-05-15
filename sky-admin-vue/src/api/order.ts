@@ -158,11 +158,16 @@ export const repetitionOrder = (id: number) =>
     method: 'post'
   })
 
-export const reminderOrder = (id: number) =>
-  request({
+export const reminderOrder = async (id: number) => {
+  const response = await request({
     url: `/user/order/reminder/${id}`,
     method: 'get'
   })
+  const result = response.data
+  if (!result || result.code !== 1) {
+    throw new Error((result && result.msg) || '催单失败，请重试')
+  }
+}
 
 export const submitOrderReview = (data: OrderReviewSubmitParams) =>
   request({
