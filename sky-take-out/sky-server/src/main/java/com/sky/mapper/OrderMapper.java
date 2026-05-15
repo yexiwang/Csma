@@ -92,4 +92,10 @@ public interface OrderMapper {
     Integer countOverdueByStatus(@Param("status") Integer status, @Param("cutoffTime") LocalDateTime cutoffTime);
 
     List<GoodsSalesDTO> getSalesTop10(@Param("begin") LocalDateTime begin, @Param("end") LocalDateTime end);
+
+    @Select("SELECT COUNT(*) FROM orders WHERE volunteer_id = #{volunteerId} AND status = 6 AND pickup_time IS NOT NULL AND delivery_time IS NOT NULL")
+    Integer countCompletedByVolunteer(@Param("volunteerId") Long volunteerId);
+
+    @Select("SELECT COALESCE(SUM(TIMESTAMPDIFF(SECOND, pickup_time, delivery_time)), 0) FROM orders WHERE volunteer_id = #{volunteerId} AND status = 6 AND pickup_time IS NOT NULL AND delivery_time IS NOT NULL")
+    Long sumDeliverySecondsByVolunteer(@Param("volunteerId") Long volunteerId);
 }

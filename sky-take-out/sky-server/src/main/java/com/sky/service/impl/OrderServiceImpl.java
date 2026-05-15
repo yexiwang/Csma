@@ -67,6 +67,7 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -787,6 +788,7 @@ public class OrderServiceImpl implements OrderService {
         Orders orders = Orders.builder()
                 .id(ordersDB.getId())
                 .status(Orders.DELIVERY_IN_PROGRESS)
+                .pickupTime(LocalDateTime.now())
                 .build();
         orderMapper.update(orders);
     }
@@ -806,7 +808,7 @@ public class OrderServiceImpl implements OrderService {
                 .deliveryTime(LocalDateTime.now())
                 .build();
         orderMapper.update(orders);
-        refreshVolunteerCompletionStats(ordersDB.getVolunteerId());
+        refreshVolunteerCompletionStats(ordersDB.getVolunteerId(), ordersDB);
     }
 
     private void validateRemindableStatus(Orders ordersDB) {
@@ -913,13 +915,14 @@ public class OrderServiceImpl implements OrderService {
         volunteerStatsMapper.update(VolunteerStats.builder()
                 .id(volunteerStats.getId())
                 .totalOrders(completedOrderCount)
+                .totalHours(volunteerStats.getTotalHours())
                 .rating(normalizedRating)
                 .level(calculatedLevel)
                 .updateTime(now)
                 .build());
     }
 
-    private void refreshVolunteerCompletionStats(Long volunteerUserId) {
+    private void refreshVolunteerCompletionStats(Long volunteerUserId, Orders completedOrder) {
         if (volunteerUserId == null) {
             return;
         }
@@ -927,13 +930,14 @@ public class OrderServiceImpl implements OrderService {
         int completedOrderCount = getCompletedOrderCount(volunteerUserId);
         int calculatedLevel = VolunteerLevelSupport.calculateLevel(completedOrderCount);
         LocalDateTime now = LocalDateTime.now();
+        BigDecimal currentHours = calculateDeliveryHours(completedOrder);
 
         VolunteerStats volunteerStats = volunteerStatsMapper.getByUserId(volunteerUserId);
         if (volunteerStats == null) {
             volunteerStatsMapper.insert(VolunteerStats.builder()
                     .userId(volunteerUserId)
                     .totalOrders(completedOrderCount)
-                    .totalHours(new BigDecimal("0.0"))
+                    .totalHours(currentHours)
                     .rating(null)
                     .level(calculatedLevel)
                     .createTime(now)
@@ -942,12 +946,33 @@ public class OrderServiceImpl implements OrderService {
             return;
         }
 
+        BigDecimal newTotalHours = (volunteerStats.getTotalHours() != null ? volunteerStats.getTotalHours() : BigDecimal.ZERO)
+                .add(currentHours);
+
         volunteerStatsMapper.update(VolunteerStats.builder()
                 .id(volunteerStats.getId())
                 .totalOrders(completedOrderCount)
+                .totalHours(newTotalHours)
                 .level(calculatedLevel)
                 .updateTime(now)
                 .build());
+    }
+
+    private BigDecimal calculateDeliveryHours(Orders completedOrder) {
+        if (completedOrder == null) {
+            return BigDecimal.ZERO;
+        }
+        LocalDateTime pickupTime = completedOrder.getPickupTime();
+        LocalDateTime deliveryTime = completedOrder.getDeliveryTime();
+        if (pickupTime == null || deliveryTime == null) {
+            return BigDecimal.ZERO;
+        }
+        long seconds = Duration.between(pickupTime, deliveryTime).getSeconds();
+        if (seconds <= 0) {
+            return BigDecimal.ZERO;
+        }
+        return BigDecimal.valueOf(seconds)
+                .divide(BigDecimal.valueOf(3600), 1, RoundingMode.HALF_UP);
     }
 
     private int getCompletedOrderCount(Long volunteerUserId) {

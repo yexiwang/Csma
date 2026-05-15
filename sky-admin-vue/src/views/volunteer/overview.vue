@@ -7,7 +7,7 @@
             志愿者个人概览
           </div>
           <h1>{{ volunteerName }}</h1>
-          <p>查看个人服务画像、累计服务表现和当前服务状态。</p>
+          <p>查看个人累计服务表现和当前服务状态。</p>
         </div>
 
         <div class="overview-actions">

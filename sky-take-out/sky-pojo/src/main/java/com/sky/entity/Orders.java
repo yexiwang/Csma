@@ -122,6 +122,9 @@ public class Orders implements Serializable {
     //送达时间
     private LocalDateTime deliveryTime;
 
+    //取餐时间
+    private LocalDateTime pickupTime;
+
     //打包费
     private int packAmount;
 

@@ -163,6 +163,8 @@ public class VolunteerServiceImpl implements VolunteerService {
         }
 
         User volunteer = requireVolunteer(currentUserId);
+        syncVolunteerStatsFromOrders(currentUserId);
+
         VolunteerStats volunteerStats = volunteerStatsMapper.getByUserId(currentUserId);
         Integer completedOrders = orderMapper.countByMap(buildCompletedOrderCountMap(currentUserId));
 
@@ -235,6 +237,44 @@ public class VolunteerServiceImpl implements VolunteerService {
         map.put("volunteerId", volunteerId);
         map.put("status", 6);
         return map;
+    }
+
+    private void syncVolunteerStatsFromOrders(Long volunteerId) {
+        Integer actualOrders = orderMapper.countCompletedByVolunteer(volunteerId);
+        Long totalSeconds = orderMapper.sumDeliverySecondsByVolunteer(volunteerId);
+        BigDecimal actualHours = BigDecimal.valueOf(totalSeconds != null ? totalSeconds : 0L)
+                .divide(BigDecimal.valueOf(3600), 1, RoundingMode.HALF_UP);
+
+        VolunteerStats volunteerStats = volunteerStatsMapper.getByUserId(volunteerId);
+        int statsOrders = volunteerStats != null && volunteerStats.getTotalOrders() != null
+                ? volunteerStats.getTotalOrders() : 0;
+        BigDecimal statsHours = volunteerStats != null && volunteerStats.getTotalHours() != null
+                ? volunteerStats.getTotalHours() : BigDecimal.ZERO;
+        int actualOrderCount = actualOrders != null ? actualOrders : 0;
+
+        if (statsOrders != actualOrderCount || statsHours.compareTo(actualHours) != 0) {
+            int level = VolunteerLevelSupport.calculateLevel(actualOrderCount);
+            LocalDateTime now = LocalDateTime.now();
+            if (volunteerStats == null) {
+                volunteerStatsMapper.insert(VolunteerStats.builder()
+                        .userId(volunteerId)
+                        .totalOrders(actualOrderCount)
+                        .totalHours(actualHours)
+                        .rating(null)
+                        .level(level)
+                        .createTime(now)
+                        .updateTime(now)
+                        .build());
+            } else {
+                volunteerStatsMapper.update(VolunteerStats.builder()
+                        .id(volunteerStats.getId())
+                        .totalOrders(actualOrderCount)
+                        .totalHours(actualHours)
+                        .level(level)
+                        .updateTime(now)
+                        .build());
+            }
+        }
     }
 
     private void writeOverviewHeader(XSSFSheet sheet, XSSFWorkbook workbook) {

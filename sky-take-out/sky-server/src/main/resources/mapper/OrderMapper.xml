@@ -41,6 +41,9 @@
             <if test="deliveryTime != null">
                 delivery_time = #{deliveryTime},
             </if>
+            <if test="pickupTime != null">
+                pickup_time = #{pickupTime},
+            </if>
             <if test="volunteerId != null">
                 volunteer_id = #{volunteerId},
             </if>
